@@ -1,0 +1,4 @@
+import {db,ensureDb,type TemplateRow} from "../../../../../lib/store";
+const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"GET,OPTIONS","Access-Control-Allow-Headers":"Content-Type"};
+export async function OPTIONS(){return new Response(null,{status:204,headers:cors})}
+export async function GET(_request:Request,{params}:{params:Promise<{productId:string}>}){try{await ensureDb();const {productId}=await params;const row=await db().prepare("SELECT t.* FROM templates t JOIN product_bindings p ON p.template_id=t.id WHERE p.shopify_product_id=? AND t.status='published'").bind(productId).first<TemplateRow>();if(!row)return Response.json({error:"No published configuration"},{status:404,headers:cors});return Response.json({templateId:row.code,version:row.version,productId,...JSON.parse(row.config_json)},{headers:cors})}catch(e){return Response.json({error:e instanceof Error?e.message:"Config error"},{status:500,headers:cors})}}

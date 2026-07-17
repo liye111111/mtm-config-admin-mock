@@ -1,0 +1,3 @@
+const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"POST,OPTIONS","Access-Control-Allow-Headers":"Content-Type"};
+export async function OPTIONS(){return new Response(null,{status:204,headers:cors})}
+export async function POST(request:Request){const body=await request.json() as {productId?:string;variantId?:string;configVersion?:number;selections?:Record<string,unknown>};if(!body.productId||!body.variantId)return Response.json({valid:false,errors:["productId 和 variantId 必填"]},{status:400,headers:cors});return Response.json({valid:true,configId:crypto.randomUUID(),configVersion:body.configVersion||1,validatedAt:new Date().toISOString()},{headers:cors})}
