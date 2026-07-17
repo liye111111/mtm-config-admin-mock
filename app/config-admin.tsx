@@ -10,11 +10,17 @@ const starter:Config={buttonLabel:"开始定制",pricingMode:"none",steps:[
   {id:"fabric",code:"fabric_fit",title:"面料与版型",type:"variant"},{id:"jacket",code:"jacket",title:"西服上衣",type:"options"},{id:"trousers",code:"trousers",title:"西裤款式",type:"options"},{id:"measure",code:"measurements",title:"量体尺寸",type:"measurements"},{id:"review",code:"review",title:"配置确认",type:"review"}],measurementFields:[
   {code:"height",name:"身高",unit:"CM",min:140,max:210,step:1},{code:"weight",name:"体重",unit:"KG",min:40,max:180,step:1},{code:"sleeve_length",name:"袖长",unit:"CM",min:40,max:90,step:.5},{code:"trouser_length",name:"裤长",unit:"CM",min:80,max:130,step:.5},{code:"waist",name:"腰围",unit:"CM",min:50,max:160,step:.5}]};
 
+function normalizeTemplate(value:unknown):Template{
+ const item=(value&&typeof value==="object"?value:{}) as Partial<Template>;
+ const rawConfig=(item.config&&typeof item.config==="object"?item.config:{}) as Partial<Config>;
+ return {id:String(item.id||crypto.randomUUID()),code:String(item.code||"invalid_template"),name:String(item.name||"未命名模板"),category:["西服","西裤","衬衫","马甲"].includes(String(item.category))?String(item.category):"西服",status:item.status==="published"?"published":"draft",version:Number.isFinite(Number(item.version))?Number(item.version):1,updatedAt:String(item.updatedAt||""),config:{buttonLabel:typeof rawConfig.buttonLabel==="string"?rawConfig.buttonLabel:starter.buttonLabel,pricingMode:"none",steps:Array.isArray(rawConfig.steps)?rawConfig.steps:structuredClone(starter.steps),measurementFields:Array.isArray(rawConfig.measurementFields)?rawConfig.measurementFields:structuredClone(starter.measurementFields)}};
+}
+
 export function ConfigAdmin(){
  const [items,setItems]=useState<Template[]>([]),[draft,setDraft]=useState<Template|null>(null),[selected,setSelected]=useState("");
  const [search,setSearch]=useState(""),[tab,setTab]=useState("steps"),[busy,setBusy]=useState(false),[notice,setNotice]=useState<{type:string;text:string}|null>(null);
  const filtered=useMemo(()=>items.filter(x=>(x.name+x.code).toLowerCase().includes(search.toLowerCase())),[items,search]);
- async function load(preferred?:string){try{const r=await fetch("/api/templates");const p=await r.json();if(!r.ok)throw new Error(p.error);setItems(p.data);const id=preferred||selected||p.data[0]?.id;setSelected(id);setDraft(structuredClone(p.data.find((x:Template)=>x.id===id)||p.data[0]||null))}catch(e){setNotice({type:"error",text:e instanceof Error?e.message:"配置服务不可用"})}}
+ async function load(preferred?:string){try{const r=await fetch("/api/templates");const p=await r.json();if(!r.ok)throw new Error(p.error);const normalized=(Array.isArray(p.data)?p.data:[]).map(normalizeTemplate);setItems(normalized);const id=preferred||selected||normalized[0]?.id;setSelected(id);setDraft(structuredClone(normalized.find((x:Template)=>x.id===id)||normalized[0]||null))}catch(e){setNotice({type:"error",text:e instanceof Error?e.message:"配置服务不可用"})}}
  useEffect(()=>{void load()},[]);
  function choose(x:Template){setSelected(x.id);setDraft(structuredClone(x));setNotice(null)}
  async function save(publish=false){if(!draft)return;setBusy(true);try{const r=await fetch(`/api/templates/${draft.id}${publish?"/publish":""}`,{method:publish?"POST":"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(draft)});const p=await r.json();if(!r.ok)throw new Error(p.error);await load(draft.id);setNotice({type:"success",text:publish?`版本 ${p.data.version} 已发布`:"草稿已保存"})}catch(e){setNotice({type:"error",text:e instanceof Error?e.message:"保存失败"})}finally{setBusy(false)}}
