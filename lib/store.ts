@@ -8,8 +8,10 @@ export async function ensureDb(){const d=db();await d.batch([
  d.prepare("CREATE TABLE IF NOT EXISTS templates (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, name TEXT NOT NULL, category TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', version INTEGER NOT NULL DEFAULT 1, config_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)"),
  d.prepare("CREATE TABLE IF NOT EXISTS template_versions (id TEXT PRIMARY KEY, template_id TEXT NOT NULL, version INTEGER NOT NULL, config_json TEXT NOT NULL, published_at TEXT NOT NULL, UNIQUE(template_id,version))"),
  d.prepare("CREATE TABLE IF NOT EXISTS product_bindings (id TEXT PRIMARY KEY, shopify_product_id TEXT NOT NULL UNIQUE, product_title TEXT NOT NULL, product_handle TEXT, template_id TEXT NOT NULL, published_version INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)")]);
+ const columns=await d.prepare("PRAGMA table_info(templates)").all<{name:string}>();
+ if(!columns.results.some(column=>column.name==="category")){await d.prepare("ALTER TABLE templates ADD COLUMN category TEXT NOT NULL DEFAULT '西服'").run()}
  const count=await d.prepare("SELECT COUNT(*) count FROM templates").first<{count:number}>();if(!count?.count){const now=new Date().toISOString();await d.batch([
- d.prepare("INSERT INTO templates VALUES (?,?,?,?,?,?,?,?,?)").bind("mens-suit-v1","mens_suit_v1","男士西服定制","西服","published",1,JSON.stringify(seedConfig),now,now),
- d.prepare("INSERT INTO template_versions VALUES (?,?,?,?,?)").bind("mens-suit-v1-v1","mens-suit-v1",1,JSON.stringify(seedConfig),now),
- d.prepare("INSERT INTO product_bindings VALUES (?,?,?,?,?,?,?,?)").bind("binding-poc","10296845205799","MTM POC 定制西服","mtm-poc-定制西服","mens-suit-v1",1,now,now)]);}}
+ d.prepare("INSERT INTO templates (id,code,name,category,status,version,config_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)").bind("mens-suit-v1","mens_suit_v1","男士西服定制","西服","published",1,JSON.stringify(seedConfig),now,now),
+ d.prepare("INSERT INTO template_versions (id,template_id,version,config_json,published_at) VALUES (?,?,?,?,?)").bind("mens-suit-v1-v1","mens-suit-v1",1,JSON.stringify(seedConfig),now),
+ d.prepare("INSERT INTO product_bindings (id,shopify_product_id,product_title,product_handle,template_id,published_version,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)").bind("binding-poc","10296845205799","MTM POC 定制西服","mtm-poc-定制西服","mens-suit-v1",1,now,now)]);}}
 export function serialize(row:TemplateRow){return{id:row.id,code:row.code,name:row.name,category:row.category,status:row.status,version:row.version,config:JSON.parse(row.config_json),createdAt:row.created_at,updatedAt:row.updated_at}}
