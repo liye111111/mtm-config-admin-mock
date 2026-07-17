@@ -10,6 +10,7 @@ export async function ensureDb(){const d=db();await d.batch([
  d.prepare("CREATE TABLE IF NOT EXISTS product_bindings (id TEXT PRIMARY KEY, shopify_product_id TEXT NOT NULL UNIQUE, product_title TEXT NOT NULL, product_handle TEXT, template_id TEXT NOT NULL, published_version INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)")]);
  const columns=await d.prepare("PRAGMA table_info(templates)").all<{name:string}>();
  if(!columns.results.some(column=>column.name==="category")){await d.prepare("ALTER TABLE templates ADD COLUMN category TEXT NOT NULL DEFAULT '西服'").run()}
+ await d.prepare("UPDATE templates SET category=status, status=CAST(version AS TEXT), version=CAST(config_json AS INTEGER), config_json=created_at, created_at=updated_at, updated_at=category WHERE status NOT IN ('draft','published') AND json_valid(created_at)=1").run();
  const count=await d.prepare("SELECT COUNT(*) count FROM templates").first<{count:number}>();if(!count?.count){const now=new Date().toISOString();await d.batch([
  d.prepare("INSERT INTO templates (id,code,name,category,status,version,config_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)").bind("mens-suit-v1","mens_suit_v1","男士西服定制","西服","published",1,JSON.stringify(seedConfig),now,now),
  d.prepare("INSERT INTO template_versions (id,template_id,version,config_json,published_at) VALUES (?,?,?,?,?)").bind("mens-suit-v1-v1","mens-suit-v1",1,JSON.stringify(seedConfig),now),
