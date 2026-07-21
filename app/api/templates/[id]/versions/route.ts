@@ -1,2 +1,6 @@
-import {db,ensureDb} from "../../../../../lib/store";
-export async function GET(_request:Request,{params}:{params:Promise<{id:string}>}){try{await ensureDb();const {id}=await params;const result=await db().prepare("SELECT id,template_id,version,config_json,published_at FROM template_versions WHERE template_id=? ORDER BY version DESC").bind(id).all();return Response.json({success:true,data:result.results.map((x:any)=>({id:x.id,templateId:x.template_id,version:x.version,config:JSON.parse(x.config_json),publishedAt:x.published_at}))})}catch(e){return Response.json({error:e instanceof Error?e.message:"Versions failed"},{status:500})}}
+import { route } from "@/src/middleware/http";
+import { getTemplateVersions } from "@/src/services/template-service";
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return route(() => getTemplateVersions(id));
+}

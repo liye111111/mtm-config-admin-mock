@@ -1,3 +1,12 @@
-import {db,ensureDb,serialize,type TemplateRow} from "../../../../lib/store";
-export async function PUT(request:Request,{params}:{params:Promise<{id:string}>}){try{await ensureDb();const {id}=await params;const body=await request.json() as {code:string;name:string;category:string;config:unknown};const now=new Date().toISOString();await db().prepare("UPDATE templates SET code=?,name=?,category=?,status='draft',config_json=?,updated_at=? WHERE id=?").bind(body.code,body.name,body.category,JSON.stringify(body.config),now,id).run();const row=await db().prepare("SELECT * FROM templates WHERE id=?").bind(id).first<TemplateRow>();if(!row)return Response.json({error:"Template not found"},{status:404});return Response.json({success:true,data:serialize(row)})}catch(e){return Response.json({error:e instanceof Error?e.message:"Update failed"},{status:400})}}
-export async function DELETE(_request:Request,{params}:{params:Promise<{id:string}>}){try{await ensureDb();const {id}=await params;const row=await db().prepare("SELECT id FROM templates WHERE id=?").bind(id).first();if(!row)return Response.json({error:"Template not found"},{status:404});await db().batch([db().prepare("DELETE FROM product_bindings WHERE template_id=?").bind(id),db().prepare("DELETE FROM template_versions WHERE template_id=?").bind(id),db().prepare("DELETE FROM templates WHERE id=?").bind(id)]);return Response.json({success:true})}catch(e){return Response.json({error:e instanceof Error?e.message:"Delete failed"},{status:400})}}
+import { route } from "@/src/middleware/http";
+import { parseSaveTemplate } from "@/src/schemas/template";
+import { removeTemplate, saveTemplate } from "@/src/services/template-service";
+type Context = { params: Promise<{ id: string }> };
+export async function PUT(request: Request, { params }: Context) {
+  const { id } = await params;
+  return route(async () => saveTemplate(id, parseSaveTemplate(await request.json())));
+}
+export async function DELETE(_request: Request, { params }: Context) {
+  const { id } = await params;
+  return route(async () => { await removeTemplate(id); return null; });
+}

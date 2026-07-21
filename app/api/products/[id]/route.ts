@@ -1,4 +1,6 @@
-import {db,ensureDb} from "../../../../lib/store";
-function view(x:any){return{id:x.id,shopifyProductId:x.shopify_product_id,productTitle:x.product_title,productHandle:x.product_handle||"",templateId:x.template_id,publishedVersion:x.published_version,updatedAt:x.updated_at}}
-export async function PUT(request:Request,{params}:{params:Promise<{id:string}>}){try{await ensureDb();const {id}=await params,b=await request.json() as any,now=new Date().toISOString();await db().prepare("UPDATE product_bindings SET shopify_product_id=?,product_title=?,product_handle=?,template_id=?,published_version=?,updated_at=? WHERE id=?").bind(String(b.shopifyProductId),b.productTitle,b.productHandle||"",b.templateId,b.publishedVersion||null,now,id).run();const row=await db().prepare("SELECT * FROM product_bindings WHERE id=?").bind(id).first();if(!row)return Response.json({error:"Binding not found"},{status:404});return Response.json({success:true,data:view(row)})}catch(e){return Response.json({error:e instanceof Error?e.message:"Update failed"},{status:400})}}
-export async function DELETE(_request:Request,{params}:{params:Promise<{id:string}>}){try{await ensureDb();const {id}=await params;await db().prepare("DELETE FROM product_bindings WHERE id=?").bind(id).run();return Response.json({success:true})}catch(e){return Response.json({error:e instanceof Error?e.message:"Delete failed"},{status:400})}}
+import { route } from "@/src/middleware/http";
+import { parseProductBinding } from "@/src/schemas/product";
+import { removeProductBinding, saveProductBinding } from "@/src/services/product-service";
+type Context = { params: Promise<{ id: string }> };
+export async function PUT(request: Request, { params }: Context) { const { id } = await params; return route(async () => saveProductBinding(id, parseProductBinding(await request.json()))); }
+export async function DELETE(_request: Request, { params }: Context) { const { id } = await params; return route(async () => { await removeProductBinding(id); return null; }); }

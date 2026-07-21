@@ -1,0 +1,14 @@
+{
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  // Use the new setting name for VS Code: js/ts.tsdk.path
+  "js/ts.tsdk.path": "node_modules/typescript/lib",
+  "js/ts.preferences.importModuleSpecifier": "non-relative",
+  "files.exclude": {
+    "dist": true,
+    ".next": true,
+    ".wrangler": false
+  }
+}

@@ -1,3 +1,8 @@
-import {db,ensureDb,serialize,type TemplateRow} from "../../../lib/store";
-export async function GET(){try{await ensureDb();const result=await db().prepare("SELECT * FROM templates ORDER BY updated_at DESC").all<TemplateRow>();return Response.json({success:true,data:result.results.map(serialize)})}catch(e){return Response.json({error:e instanceof Error?e.message:"Database error"},{status:500})}}
-export async function POST(request:Request){try{await ensureDb();const body=await request.json() as {name?:string;category?:string;config?:unknown};const id=crypto.randomUUID(),now=new Date().toISOString(),code=`template_${Date.now()}`;await db().prepare("INSERT INTO templates (id,code,name,category,status,version,config_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)").bind(id,code,body.name||"新定制模板",body.category||"西服","draft",1,JSON.stringify(body.config||{}),now,now).run();const row=await db().prepare("SELECT * FROM templates WHERE id=?").bind(id).first<TemplateRow>();return Response.json({success:true,data:serialize(row!)},{status:201})}catch(e){return Response.json({error:e instanceof Error?e.message:"Create failed"},{status:400})}}
+import { route } from "@/src/middleware/http";
+import { parseCreateTemplate } from "@/src/schemas/template";
+import { createTemplate, getTemplates } from "@/src/services/template-service";
+
+export async function GET() { return route(getTemplates); }
+export async function POST(request: Request) {
+  return route(async () => createTemplate(parseCreateTemplate(await request.json())), { successStatus: 201 });
+}

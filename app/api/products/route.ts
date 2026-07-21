@@ -1,4 +1,5 @@
-import {db,ensureDb} from "../../../lib/store";
-function view(x:any){return{id:x.id,shopifyProductId:x.shopify_product_id,productTitle:x.product_title,productHandle:x.product_handle||"",templateId:x.template_id,publishedVersion:x.published_version,createdAt:x.created_at,updatedAt:x.updated_at}}
-export async function GET(){try{await ensureDb();const result=await db().prepare("SELECT * FROM product_bindings ORDER BY updated_at DESC").all();return Response.json({success:true,data:result.results.map(view)})}catch(e){return Response.json({error:e instanceof Error?e.message:"Load failed"},{status:500})}}
-export async function POST(request:Request){try{await ensureDb();const b=await request.json() as any;if(!b.shopifyProductId||!b.productTitle||!b.templateId)return Response.json({error:"商品 ID、商品标题和模板必填"},{status:400});const id=crypto.randomUUID(),now=new Date().toISOString();await db().prepare("INSERT INTO product_bindings (id,shopify_product_id,product_title,product_handle,template_id,published_version,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)").bind(id,String(b.shopifyProductId),b.productTitle,b.productHandle||"",b.templateId,b.publishedVersion||null,now,now).run();const row=await db().prepare("SELECT * FROM product_bindings WHERE id=?").bind(id).first();return Response.json({success:true,data:view(row)},{status:201})}catch(e){return Response.json({error:e instanceof Error?e.message:"Create failed"},{status:400})}}
+import { route } from "@/src/middleware/http";
+import { parseProductBinding } from "@/src/schemas/product";
+import { createProductBinding, getProductBindings } from "@/src/services/product-service";
+export async function GET() { return route(getProductBindings); }
+export async function POST(request: Request) { return route(async () => createProductBinding(parseProductBinding(await request.json())), { successStatus: 201 }); }
