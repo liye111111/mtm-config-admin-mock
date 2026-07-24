@@ -28,6 +28,19 @@ app/api -> schemas/services -> repositories -> D1
 
 Route 中不直接编写 SQL 或业务规则。外部输入在 `schemas` 中通过 Zod 校验并推导 TypeScript 类型，业务规则集中于 `services`，D1 操作集中于 `repositories`。
 
+## 当前 Domain 基线
+
+管理端和 API 只支持 Template Schema v2：
+
+```text
+TemplateConfig
+├── components             # 套装固定逻辑组件
+├── steps                  # 定制步骤及选项
+└── measurementBlocks      # 尺寸块及字段
+```
+
+旧 `pieces`、`pieceSelection` 和平铺 `measurementFields` 数据不兼容，也没有运行时转换逻辑。升级已有环境前必须备份旧 D1，并按新版模型重新初始化或录入模板。
+
 ## 本地运行
 
 ```bash
@@ -54,7 +67,9 @@ npm run build
 - `GET /api/storefront/config/:productId`
 - `POST /api/storefront/validate`
 
-Shopify 认证、普通套装商品、Ajax Cart、Line Item Properties、D1 配置快照和订单 Webhook 的完整对接约定见 [`doc/shopify-integration-api.md`](doc/shopify-integration-api.md)。
+CF 对外接口、鉴权、请求响应及实施状态见 [`doc/cf-api-reference.md`](doc/cf-api-reference.md)。Shopify 认证、普通套装商品、Ajax Cart、Line Item Properties、D1 配置快照和订单 Webhook 的完整对接约定见 [`doc/shopify-integration-api.md`](doc/shopify-integration-api.md)。
+
+Storefront 配置接口使用 `enabled + configuration` 响应；绑定停用、商品无绑定或模板未发布时返回 HTTP 200 和 `enabled:false`。
 
 POC 商品 ID 为 `10296845205799`。
 

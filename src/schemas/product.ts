@@ -9,6 +9,7 @@ export const productBindingSchema = z.object({
   productHandle: z.string().trim().default(""),
   templateId: requiredId("模板必填"),
   publishedVersion: nullableVersion.default(null),
+  enabled: z.boolean().default(true),
 });
 
 export type SaveProductBindingInput = z.infer<typeof productBindingSchema>;
