@@ -10,18 +10,18 @@ const { d1, r2 } = hostingConfig;
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
-const localShopifyVars = () => Object.fromEntries(Object.entries({
+const shopifyVars = (authMode: string | undefined) => Object.fromEntries(Object.entries({
   SHOPIFY_STORE: process.env.SHOPIFY_STORE,
   SHOPIFY_CLIENT_ID: process.env.SHOPIFY_CLIENT_ID,
   SHOPIFY_CLIENT_SECRET: process.env.SHOPIFY_CLIENT_SECRET,
   SHOPIFY_ADMIN_ACCESS_TOKEN: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN,
-  SHOPIFY_AUTH_MODE: process.env.SHOPIFY_AUTH_MODE,
+  SHOPIFY_AUTH_MODE: authMode,
 }).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
 
-const localBindingConfig = (includeLocalShopifySecrets: boolean) => ({
+const localBindingConfig = (authMode: string | undefined) => ({
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
-  vars: includeLocalShopifySecrets ? localShopifyVars() : {},
+  vars: shopifyVars(authMode),
   d1_databases: d1
     ? [
         {
@@ -60,7 +60,7 @@ export default defineConfig(async ({ command }) => {
       sites(),
       cloudflare({
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
-        config: localBindingConfig(command === "serve"),
+        config: localBindingConfig(command === "serve" ? process.env.SHOPIFY_AUTH_MODE : "token_exchange"),
       }),
     ],
   };
