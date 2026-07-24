@@ -1,0 +1,2 @@
+export type CustomizationStatus = "validated" | "added_to_cart";
+export type CustomizationInstance = { id: string; shopId: string; productId: string; variantId: string; sku?: string; templateId: string; templateCode: string; templateVersion: number; schemaVersion: number; status: CustomizationStatus; selections: Record<string, unknown>; components: Record<string, unknown>; measurements: Record<string, unknown>; summary: string; createdAt: string };

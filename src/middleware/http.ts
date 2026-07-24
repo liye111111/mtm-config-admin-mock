@@ -1,6 +1,6 @@
 import { AppError } from "@/src/shared/errors";
 
-export const storefrontCors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Headers": "Content-Type" };
+export const storefrontCors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Headers": "Content-Type,Idempotency-Key" };
 export function optionsResponse() { return new Response(null, { status: 204, headers: storefrontCors }); }
 export async function route<T>(operation: () => Promise<T>, options: { successStatus?: number; headers?: HeadersInit; fallback?: string } = {}) {
   try {

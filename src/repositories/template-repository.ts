@@ -6,15 +6,15 @@ export async function listTemplates() { await ensureDatabase(); return (await da
 export async function findTemplate(id: string) { await ensureDatabase(); return database().prepare("SELECT * FROM templates WHERE id=?").bind(id).first<TemplateRow>(); }
 export async function findPublishedTemplate(id: string) { await ensureDatabase(); return database().prepare("SELECT * FROM templates WHERE id=? AND status='published'").bind(id).first<TemplateRow>(); }
 export async function findTemplateVersion(id: string, version: number) { await ensureDatabase(); return database().prepare("SELECT id,template_id,version,schema_version,config_json,published_at FROM template_versions WHERE template_id=? AND version=?").bind(id, version).first<TemplateVersionRow>(); }
-export async function findPublishedTemplateForProduct(productId: string) {
+export async function findPublishedTemplateForProduct(shopId: string, productId: string) {
   await ensureDatabase();
   return database().prepare(`SELECT t.id,t.code,t.name,t.category,t.status,
     COALESCE(tv.version,t.version) version,COALESCE(tv.schema_version,t.schema_version) schema_version,
     COALESCE(tv.config_json,t.config_json) config_json,t.created_at,t.updated_at
     FROM templates t JOIN product_bindings p ON p.template_id=t.id
     LEFT JOIN template_versions tv ON tv.template_id=t.id AND tv.version=p.published_version
-    WHERE p.shopify_product_id=? AND p.enabled=1 AND t.status='published'`)
-    .bind(productId).first<TemplateRow>();
+    WHERE p.shop_id=? AND p.shopify_product_id=? AND p.enabled=1 AND t.status='published'`)
+    .bind(shopId, productId).first<TemplateRow>();
 }
 export async function createTemplate(input: { name: string; category: string; config: TemplateConfig }) {
   await ensureDatabase(); const id = crypto.randomUUID(), now = new Date().toISOString(), code = `template_${Date.now()}`;

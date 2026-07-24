@@ -12,6 +12,6 @@ export async function GET(request: Request, { params }: Context) {
     const shopId = await authenticateAdminList(request);
     const binding = await findProductBinding(id, shopId);
     if (!binding) throw new NotFoundError("Binding not found");
-    return getStorefrontConfig(binding.shopify_product_id);
+    return getStorefrontConfig(shopId, binding.shopify_product_id);
   });
 }

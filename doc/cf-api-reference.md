@@ -436,7 +436,7 @@ Worker 验证时间窗口、Nonce、防重放签名和客户端权限。
 | `GET /api/health` | 已实现 |
 | `GET /api/storefront/config/{productId}` | 已实现 Schema v2 |
 | `POST /api/storefront/validate` | 已实现基础校验，需继续补齐 Variant、关系和量体校验 |
-| `POST /api/storefront/customizations` | 待实现 |
+| `POST /api/storefront/customizations` | 已完成首版：App Proxy 鉴权、权威校验、幂等创建与 D1 快照 |
 | 模板 CRUD、发布、版本 API | 已实现阶段一能力 |
 | 商品绑定 API | 已实现阶段一能力 |
 | 客户量体 API | 待后续阶段实现 |

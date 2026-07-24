@@ -47,6 +47,18 @@ async function clientCredentialsAccessToken(shop: string) {
   return payload.access_token;
 }
 
+export async function verifyShopifyVariant(shop: string, productId: string, variantId: string) {
+  const token = await clientCredentialsAccessToken(shop);
+  const gid = variantId.startsWith("gid://") ? variantId : `gid://shopify/ProductVariant/${variantId}`;
+  const response = await fetch(`https://${shop}/admin/api/2026-07/graphql.json`, { method: "POST", headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": token }, body: JSON.stringify({ query: `query VariantForCustomization($id: ID!) { productVariant(id: $id) { id legacyResourceId sku availableForSale product { legacyResourceId } } }`, variables: { id: gid } }) });
+  const payload = await response.json() as { data?: { productVariant?: { legacyResourceId: string; sku?: string; availableForSale: boolean; product: { legacyResourceId: string } } }; errors?: Array<{ message: string }> };
+  if (!response.ok || payload.errors?.length) throw new AppError(payload.errors?.[0]?.message || "Shopify Variant 查询失败", 502);
+  const variant = payload.data?.productVariant;
+  if (!variant || String(variant.product.legacyResourceId) !== productId) throw new AppError("Variant 不属于当前商品", 422);
+  if (!variant.availableForSale) throw new AppError("当前 Variant 不可售", 422);
+  return { variantId: String(variant.legacyResourceId), sku: variant.sku || "" };
+}
+
 async function accessToken(shop: string, sessionToken?: string, allowClientCredentials = false) {
   if (env.SHOPIFY_ADMIN_ACCESS_TOKEN && (!env.SHOPIFY_STORE || env.SHOPIFY_STORE === shop)) return env.SHOPIFY_ADMIN_ACCESS_TOKEN;
   if (allowClientCredentials && env.SHOPIFY_AUTH_MODE === "client_credentials") return clientCredentialsAccessToken(shop);
