@@ -27,7 +27,7 @@ export async function getStorefrontConfig(shopId: string, productId: string) {
 }
 
 function record(value: unknown): Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
-function validateTemplateSelections(config: TemplateConfig, selections: Record<string, unknown>, summary: string[]) {
+function validateTemplateSelections(config: TemplateConfig, selections: Record<string, unknown>, summary: string[], validateMeasurements = true) {
   for (const step of config.steps.filter((item) => item.enabled)) {
     if (step.type !== "options" || !step.options.length) continue;
     const selected = String(selections[step.code] ?? "");
@@ -37,13 +37,15 @@ function validateTemplateSelections(config: TemplateConfig, selections: Record<s
     if (!option) throw new AppError(`${step.title}包含无效选项`, 422);
     summary.push(option.name);
   }
-  const measurements = record(selections.measurements);
-  for (const block of config.measurementBlocks.filter((item) => item.enabled)) for (const field of block.fields.filter((item) => item.enabled)) {
-    const raw = measurements[field.code];
-    if (field.required && (raw === undefined || raw === null || raw === "")) throw new AppError(`请填写${field.name}`, 422);
-    if (raw === undefined || raw === null || raw === "") continue;
-    const value = Number(raw);
-    if (!Number.isFinite(value) || value < field.min || value > field.max) throw new AppError(`${field.name}必须在 ${field.min}-${field.max} ${field.standardUnit} 之间`, 422);
+  if (validateMeasurements) {
+    const measurements = record(selections.measurements);
+    for (const block of config.measurementBlocks.filter((item) => item.enabled)) for (const field of block.fields.filter((item) => item.enabled)) {
+      const raw = measurements[field.code];
+      if (field.required && (raw === undefined || raw === null || raw === "")) throw new AppError(`请填写${field.name}`, 422);
+      if (raw === undefined || raw === null || raw === "") continue;
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value < field.min || value > field.max) throw new AppError(`${field.name}必须在 ${field.min}-${field.max} ${field.standardUnit} 之间`, 422);
+    }
   }
 }
 async function validateAuthoritatively(shopId: string, input: ValidateConfigurationInput) {
@@ -61,7 +63,10 @@ async function validateAuthoritatively(shopId: string, input: ValidateConfigurat
       if (component.required && !Object.keys(selected).length) throw new AppError(`请完成${component.name}定制`, 422);
       const child = component.childTemplateId ? await templates.findPublishedTemplate(component.childTemplateId) : null;
       if (!child) throw new AppError(`${component.name}未配置有效的已发布单品模板`, 422);
-      validateTemplateSelections(templateView(child).config, selected, summary);
+      // A composite template collects measurements once at the root level.
+      // Child templates contribute customization options only and must not
+      // require a second, component-local copy of the same measurements.
+      validateTemplateSelections(templateView(child).config, selected, summary, false);
     }
   }
   return { row, summary: summary.join(" / ") || `定制配置 v${row.version}` };
