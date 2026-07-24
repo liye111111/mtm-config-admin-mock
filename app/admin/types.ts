@@ -16,14 +16,33 @@ export type TemplateView = {
 
 export type ProductBindingView = {
   id: string;
+  shopId: string;
+  shopifyProductGid: string;
   shopifyProductId: string;
   productTitle: string;
   productHandle: string;
+  productImageUrl?: string;
+  productImageAlt?: string;
+  productStatus: "ACTIVE" | "DRAFT" | "ARCHIVED";
+  productKind: "single" | "suite";
+  variantCount: number;
+  onlineStoreUrl?: string;
+  shopifyAdminUrl?: string;
   templateId: string;
   publishedVersion: number | null;
   enabled: boolean;
+  syncStatus: "synced" | "stale" | "error";
+  syncError?: string;
+  shopifyUpdatedAt?: string;
+  lastSyncedAt?: string;
+  mockProduct?: ShopifyProductSelection;
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type ShopifyProductSelection = {
+  gid: string; title: string; handle: string; imageUrl?: string; imageAlt?: string; status: "ACTIVE" | "DRAFT" | "ARCHIVED";
+  variantCount: number; onlineStoreUrl?: string; updatedAt?: string;
 };
 
 export type TemplateVersionView = {
@@ -37,4 +56,3 @@ export type TemplateVersionView = {
 
 export type TemplateTab = "base" | "components" | "steps" | "measurements" | "versions" | "json";
 export type MutableMeasurementBlock = MeasurementBlock;
-

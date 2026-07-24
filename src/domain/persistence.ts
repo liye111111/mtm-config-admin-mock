@@ -24,13 +24,25 @@ export type TemplateVersionRow = {
 
 export type ProductBindingRow = {
   id: string;
+  shop_id: string;
+  shopify_product_gid: string;
   shopify_product_id: string;
   product_title: string;
-  product_handle: string | null;
+  product_handle: string;
+  product_image_url: string | null;
+  product_image_alt: string | null;
+  product_status: string;
+  product_kind: string;
+  variant_count: number;
+  online_store_url: string | null;
+  shopify_admin_url: string | null;
   template_id: string;
   published_version: number | null;
   enabled: number;
+  sync_status: string;
+  sync_error: string | null;
+  shopify_updated_at: string | null;
+  last_synced_at: string | null;
   created_at: string;
   updated_at: string;
 };
-

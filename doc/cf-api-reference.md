@@ -295,21 +295,27 @@ GET    /api/templates/{id}/versions
 
 ```http
 GET /api/products
+POST /api/products
 GET /api/products/{id}
 PUT /api/products/{id}
+DELETE /api/products/{id}
+POST /api/products/{id}/sync
+GET /api/products/{id}/storefront-preview
 ```
 
 绑定请求示例：
 
 ```json
 {
+  "shopifyProductGid": "gid://shopify/Product/1234567890",
+  "productKind": "suite",
   "templateId": "template_suit",
   "publishedVersion": 3,
   "enabled": true
 }
 ```
 
-Shopify 商品价格、SKU 和库存只读，不通过该接口编辑。
+管理端请求需要携带 Shopify Session Token。服务端验证店铺身份后通过 Admin GraphQL API 重新读取商品，浏览器返回的标题、主图和状态不作为可信数据。商品价格、SKU 和库存只读，不通过该接口编辑。
 
 ### 6.3 后续管理接口
 

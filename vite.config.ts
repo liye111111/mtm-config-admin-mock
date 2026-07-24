@@ -10,10 +10,18 @@ const { d1, r2 } = hostingConfig;
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
+const localShopifyVars = () => Object.fromEntries(Object.entries({
+  SHOPIFY_STORE: process.env.SHOPIFY_STORE,
+  SHOPIFY_CLIENT_ID: process.env.SHOPIFY_CLIENT_ID,
+  SHOPIFY_CLIENT_SECRET: process.env.SHOPIFY_CLIENT_SECRET,
+  SHOPIFY_ADMIN_ACCESS_TOKEN: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN,
+  SHOPIFY_AUTH_MODE: process.env.SHOPIFY_AUTH_MODE,
+}).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
 
-const localBindingConfig = {
+const localBindingConfig = (includeLocalShopifySecrets: boolean) => ({
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
+  vars: includeLocalShopifySecrets ? localShopifyVars() : {},
   d1_databases: d1
     ? [
         {
@@ -31,9 +39,9 @@ const localBindingConfig = {
         },
       ]
     : [],
-};
+});
 
-export default defineConfig(async () => {
+export default defineConfig(async ({ command }) => {
   // Keep Wrangler and Miniflare state project-local. These are non-secret tool
   // settings; application environment belongs in ignored `.env*` files.
   process.env.WRANGLER_WRITE_LOGS ??= "false";
@@ -52,7 +60,7 @@ export default defineConfig(async () => {
       sites(),
       cloudflare({
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
-        config: localBindingConfig,
+        config: localBindingConfig(command === "serve"),
       }),
     ],
   };
