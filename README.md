@@ -69,6 +69,8 @@ npm run build
 
 CF 对外接口、鉴权、请求响应及实施状态见 [`doc/cf-api-reference.md`](doc/cf-api-reference.md)。Shopify 认证、普通套装商品、Ajax Cart、Line Item Properties、D1 配置快照和订单 Webhook 的完整对接约定见 [`doc/shopify-integration-api.md`](doc/shopify-integration-api.md)。
 
+下一阶段 Storefront 定制器与购物车集成任务见 [`doc/tasks/storefront-customizer-cart-integration.md`](doc/tasks/storefront-customizer-cart-integration.md)。
+
 Shopify Admin Resource Picker 商品选择和模板绑定的实施任务见 [`doc/tasks/shopify-product-binding-picker.md`](doc/tasks/shopify-product-binding-picker.md)。
 
 Storefront 配置接口使用 `enabled + configuration` 响应；绑定停用、商品无绑定或模板未发布时返回 HTTP 200 和 `enabled:false`。
