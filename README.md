@@ -54,6 +54,8 @@ npm run build
 - `GET /api/storefront/config/:productId`
 - `POST /api/storefront/validate`
 
+Shopify 认证、普通套装商品、Ajax Cart、Line Item Properties、D1 配置快照和订单 Webhook 的完整对接约定见 [`doc/shopify-integration-api.md`](doc/shopify-integration-api.md)。
+
 POC 商品 ID 为 `10296845205799`。
 
 ## Cloudflare 部署

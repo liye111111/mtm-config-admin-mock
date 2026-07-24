@@ -1,0 +1,339 @@
+@startuml
+title Shopify 服装定制一期 Domain 关系
+
+skinparam backgroundColor #FFFFFF
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam linetype ortho
+hide empty methods
+
+legend right
+  |= 关系 |= 含义 |
+  | *-- | 聚合内组成，生命周期由聚合根管理 |
+  | o-- | 可选引用，不复制可变对象 |
+  | --> | 业务关联或稳定标识引用 |
+  | ..> | 通过编码建立的规则依赖 |
+endlegend
+
+package "Template 聚合" #EAF3FF {
+  enum TemplateStatus {
+    draft
+    published
+  }
+
+  enum TemplateType {
+    single
+    composite
+  }
+
+  enum GarmentCategory {
+    suit
+    jacket
+    trousers
+    waistcoat
+  }
+
+  enum StepType {
+    variant
+    options
+    measurements
+    review
+  }
+
+  enum DisplayType {
+    image_card
+    color_swatch
+    radio
+    select
+    text_input
+  }
+
+  class CustomizationTemplate <<Aggregate Root>> {
+    +id: string
+    +code: string
+    +name: string
+    +status: TemplateStatus
+    +version: number
+    +templateType: TemplateType
+    +applicableCategories: GarmentCategory[]
+    +createdAt: ISO8601
+    +updatedAt: ISO8601
+  }
+
+  class GarmentComponentDefinition {
+    +id: string
+    +code: string
+    +name: string
+    +category: GarmentCategory
+    +childTemplateId: string
+    +customizationEnabled: boolean
+    +sortOrder: number
+  }
+
+  class CustomizationStep {
+    +id: string
+    +code: string
+    +title: string
+    +description: string?
+    +type: StepType
+    +displayType: DisplayType?
+    +required: boolean
+    +enabled: boolean
+    +sortOrder: number
+  }
+
+  class CustomizationOption {
+    +id: string
+    +code: string
+    +name: string
+    +description: string?
+    +imageUrl: string?
+    +sortOrder: number
+    +enabled: boolean
+    +defaultSelected: boolean
+    +applicableCategories: GarmentCategory[]
+    +affectsPrice: false
+  }
+
+  enum OptionRelationType {
+    show
+    hide
+    enable
+    disable
+    exclude
+    auto_select
+  }
+
+  class OptionRelation {
+    +id: string
+    +sourceStepCode: string
+    +sourceOptionCode: string
+    +relationType: OptionRelationType
+    +targetStepCode: string
+    +targetOptionCode: string?
+    +enabled: boolean
+  }
+
+  CustomizationTemplate *-- "0..*" GarmentComponentDefinition : garment components
+  CustomizationTemplate *-- "1..*" CustomizationStep : steps
+  CustomizationTemplate *-- "0..*" OptionRelation : relations
+  CustomizationStep *-- "0..*" CustomizationOption : options
+  GarmentComponentDefinition --> "1" CustomizationTemplate : childTemplateId
+  OptionRelation ..> CustomizationStep : stepCode
+  OptionRelation ..> CustomizationOption : optionCode
+}
+
+package "尺寸定义与客户量体" #ECF8EF {
+  enum MeasurementUnit {
+    CM
+    IN
+  }
+
+  class MeasurementBlock {
+    +id: string
+    +code: string
+    +name: string
+    +description: string?
+    +applicableCategories: GarmentCategory[]
+    +enabled: boolean
+    +sortOrder: number
+  }
+
+  class MeasurementFieldDefinition {
+    +id: string
+    +code: string
+    +name: string
+    +description: string?
+    +imageUrl: string?
+    +standardUnit: MeasurementUnit
+    +min: number
+    +max: number
+    +step: number
+    +required: boolean
+    +enabled: boolean
+    +sortOrder: number
+  }
+
+  class MeasurementProfile <<Aggregate Root>> {
+    +id: string
+    +shopifyCustomerId: string
+    +name: string
+    +subjectName: string?
+    +createdAt: ISO8601
+    +updatedAt: ISO8601
+  }
+
+  class MeasurementValue {
+    +fieldCode: string
+    +valueInCm: number
+    +inputValue: number
+    +inputUnit: MeasurementUnit
+  }
+
+  CustomizationTemplate *-- "0..*" MeasurementBlock : measurementBlocks
+  MeasurementBlock *-- "1..*" MeasurementFieldDefinition : fields
+  MeasurementProfile *-- "1..*" MeasurementValue : values
+  MeasurementValue --> MeasurementFieldDefinition : fieldCode
+}
+
+package "商品绑定" #FFF4DE {
+  class ProductTemplateBinding <<Aggregate Root>> {
+    +id: string
+    +shopifyProductId: string
+    +productTitle: string
+    +productHandle: string
+    +templateId: string
+    +publishedVersion: number?
+    +enabled: boolean
+    +createdAt: ISO8601
+    +updatedAt: ISO8601
+  }
+
+  ProductTemplateBinding --> "1" CustomizationTemplate : templateId
+}
+
+package "消费者定制实例" #F4EEFF {
+  enum CustomizationInstanceStatus {
+    editing
+    validated
+    added_to_cart
+    ordered
+  }
+
+  class CustomizationInstance <<Aggregate Root>> {
+    +id: string
+    +shopifyProductId: string
+    +shopifyVariantId: string
+    +shopifyCustomerId: string?
+    +templateId: string
+    +templateCode: string
+    +templateVersion: number
+    +measurementProfileId: string?
+    +status: CustomizationInstanceStatus
+    +createdAt: ISO8601
+    +updatedAt: ISO8601
+  }
+
+  class GarmentComponentConfiguration {
+    +componentCode: string
+    +componentName: string
+  }
+
+  class SelectedOption {
+    +stepCode: string
+    +optionCode: string
+    +stepName: string
+    +optionName: string
+  }
+
+  class MeasurementSnapshotValue {
+    +fieldCode: string
+    +fieldName: string
+    +valueInCm: number
+    +inputValue: number
+    +inputUnit: MeasurementUnit
+  }
+
+  CustomizationInstance *-- "1..*" GarmentComponentConfiguration : componentConfigurations
+  GarmentComponentConfiguration *-- "0..*" SelectedOption : selections
+  CustomizationInstance *-- "0..*" MeasurementSnapshotValue : measurementSnapshot
+  CustomizationInstance --> "1" CustomizationTemplate : templateId + version
+  CustomizationInstance o-- "0..1" MeasurementProfile : source profile
+}
+
+package "订单快照" #FFF0F0 {
+  class OrderCustomizationSnapshot <<Aggregate Root>> {
+    +id: string
+    +configId: string
+    +shopifyOrderId: string?
+    +shopifyLineItemId: string?
+    +shopifyProductId: string
+    +shopifyVariantId: string
+    +templateCode: string
+    +templateVersion: number
+    +createdAt: ISO8601
+  }
+
+  OrderCustomizationSnapshot --> "1" CustomizationInstance : configId
+  OrderCustomizationSnapshot *-- "1..*" GarmentComponentConfiguration : immutable copy
+  OrderCustomizationSnapshot *-- "0..*" MeasurementSnapshotValue : immutable copy
+}
+
+package "Storefront API契约" #F2F2F2 {
+  class StorefrontConfigResponse <<DTO>> {
+    +enabled: boolean
+    +configuration: StorefrontConfiguration | null
+  }
+
+  class StorefrontConfiguration <<DTO>> {
+    +templateId: string
+    +version: number
+    +templateType: TemplateType
+  }
+
+  StorefrontConfigResponse o-- "0..1" StorefrontConfiguration : configuration
+  StorefrontConfiguration ..> CustomizationTemplate : published projection
+}
+
+package "Shopify 外部对象" #F8F8F8 {
+  class ShopifyProduct <<External>>
+  class ShopifyVariant <<External>>
+  class ShopifyCustomer <<External>>
+  class ShopifyCartLine <<External>>
+  class ShopifyOrderLine <<External>>
+
+  ShopifyProduct *-- "1..*" ShopifyVariant
+  ShopifyVariant --> ShopifyCartLine
+  ShopifyCartLine --> ShopifyOrderLine : Checkout
+}
+
+ProductTemplateBinding --> ShopifyProduct : shopifyProductId
+CustomizationInstance --> ShopifyProduct : shopifyProductId
+CustomizationInstance --> ShopifyVariant : shopifyVariantId
+MeasurementProfile --> ShopifyCustomer : shopifyCustomerId
+OrderCustomizationSnapshot --> ShopifyOrderLine : shopifyLineItemId
+
+note right of ProductTemplateBinding
+  定制能力启用条件：
+  1. 存在商品绑定
+  2. binding.enabled = true
+  3. 模板已发布
+
+  不管理成衣购买模式，
+  不存在 PurchaseMode。
+end note
+
+note bottom of CustomizationOption
+  一期所有定制选项均不影响价格。
+  商品成交价始终来自 Shopify Variant。
+end note
+
+note right of GarmentComponentDefinition
+  一期套装是普通 Shopify Product/Variant；
+  上衣、西裤、马甲是模板预定义的逻辑组件，
+  不是独立 Shopify 商品。
+
+  定制器不能增删组件；
+  完整组件配置保存于 D1；
+  不使用 Bundle 或 Cart Transform Function。
+end note
+
+note bottom of StorefrontConfigResponse
+  无可用定制配置时返回 HTTP 200：
+  enabled = false
+  configuration = null
+
+  D1或配置解析异常仍返回4xx/5xx。
+end note
+
+note bottom of OrderCustomizationSnapshot
+  下单时复制最终配置与尺寸，
+  后续模板或量体档案修改
+  不得改变历史订单。
+
+  ERP/MTM依据逻辑组件配置
+  拆分生产任务。
+end note
+
+@enduml

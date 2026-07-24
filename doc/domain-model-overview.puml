@@ -1,0 +1,102 @@
+@startuml
+title Shopify 服装定制一期核心 Domain
+
+skinparam backgroundColor #FFFFFF
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam linetype ortho
+hide empty methods
+
+package "Shopify" #F3F3F3 {
+  class ShopifyProduct <<External>>
+  class ShopifyVariant <<External>>
+  class ShopifyCustomer <<External>>
+  class ShopifyOrderLine <<External>>
+
+  ShopifyProduct *-- ShopifyVariant
+}
+
+package "定制定义" #EAF3FF {
+  class ProductCustomizationBinding <<Aggregate Root>> {
+    productId
+    templateId
+    enabled
+  }
+
+  class CustomizationTemplate <<Aggregate Root>> {
+    templateId
+    version
+    status
+  }
+
+  class GarmentComponentDefinition {
+    componentCode
+    childTemplateId
+  }
+
+  class CustomizationStep {
+    stepCode
+  }
+
+  ProductCustomizationBinding --> CustomizationTemplate : 绑定已发布模板
+  CustomizationTemplate *-- "1..*" CustomizationStep : 定制步骤
+  CustomizationTemplate *-- "0..*" GarmentComponentDefinition : 套装逻辑组件
+  GarmentComponentDefinition --> CustomizationTemplate : 子模板
+}
+
+package "消费者数据" #ECF8EF {
+  class MeasurementProfile <<Aggregate Root>> {
+    profileId
+    customerId
+  }
+
+  class CustomizationInstance <<Aggregate Root>> {
+    configId
+    productId
+    variantId
+    templateVersion
+    status
+  }
+
+  class ComponentConfiguration {
+    componentCode
+    selections
+    measurements
+  }
+
+  class OrderCustomizationSnapshot <<Aggregate Root>> {
+    configId
+    orderLineId
+  }
+
+  CustomizationInstance *-- "1..*" ComponentConfiguration : 最终组件配置
+  CustomizationInstance o-- "0..1" MeasurementProfile : 引用量体档案
+  OrderCustomizationSnapshot --> CustomizationInstance : 固化下单配置
+  OrderCustomizationSnapshot *-- "1..*" ComponentConfiguration : 不可变组件副本
+}
+
+ProductCustomizationBinding --> ShopifyProduct : 商品
+CustomizationInstance --> ShopifyVariant : 普通单品或套装Variant
+CustomizationInstance --> CustomizationTemplate : 模板版本
+MeasurementProfile --> ShopifyCustomer : 所属客户
+OrderCustomizationSnapshot --> ShopifyOrderLine : 订单行
+note right of CustomizationTemplate
+  单品模板：直接包含定制步骤。
+  组合模板：定义固定逻辑组件及其子模板。
+  逻辑组件不是独立Shopify商品。
+end note
+
+note bottom of CustomizationInstance
+  定制属性不影响价格；
+  普通套装以一个Variant和一个Cart Line成交；
+  成交价来自整个套装的Shopify Variant。
+end note
+
+note bottom of OrderCustomizationSnapshot
+  保存不可变快照，避免模板或
+  量体档案修改影响历史订单。
+  ERP/MTM按逻辑组件拆分生产任务。
+end note
+
+@enduml
