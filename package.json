@@ -12,7 +12,7 @@
     "test": "npm run build",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
-    "deploy": "sh scripts/with-shopify-env.sh sh -c 'npm run build && wrangler deploy --config dist/server/wrangler.json'"
+    "deploy": "sh scripts/with-shopify-env.sh sh -c 'npm run build && wrangler deploy --config dist/server/wrangler.json --keep-vars'"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",

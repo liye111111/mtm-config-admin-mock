@@ -19,6 +19,7 @@ const shopifyVars = (authMode: string | undefined) => Object.fromEntries(Object.
 }).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
 
 const localBindingConfig = (authMode: string | undefined) => ({
+  keep_vars: true,
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
   vars: shopifyVars(authMode),
