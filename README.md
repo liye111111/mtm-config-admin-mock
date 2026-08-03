@@ -61,11 +61,15 @@ npm run build
 ## API
 
 - `GET /api/health`
+- `GET /api/measurement-profiles`
 - `GET|POST /api/templates`
 - `PUT /api/templates/:id`
 - `POST /api/templates/:id/publish`
 - `GET /api/storefront/config/:productId`
 - `POST /api/storefront/validate`
+- `GET|PUT|DELETE /api/storefront/measurement-profile`
+- `GET /api/storefront/measurement-profile/claim-status`
+- `POST /api/storefront/measurement-profile/claim`
 
 CF 对外接口、鉴权、请求响应及实施状态见 [`doc/cf-api-reference.md`](doc/cf-api-reference.md)。Shopify 认证、普通套装商品、Ajax Cart、Line Item Properties、D1 配置快照和订单 Webhook 的完整对接约定见 [`doc/shopify-integration-api.md`](doc/shopify-integration-api.md)。
 

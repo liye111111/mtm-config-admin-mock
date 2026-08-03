@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { garmentCategoryLabels, type CustomizationOption, type CustomizationStep, type GarmentCategory, type GarmentComponentDefinition, type MeasurementBlock, type MeasurementFieldDefinition, type TemplateType } from "@/src/domain";
 import { apiJson, jsonRequest } from "./admin/api";
 import { AdminShell, type AdminView } from "./admin/app-shell";
-import type { ProductBindingView, TemplateTab, TemplateVersionView, TemplateView } from "./admin/types";
+import type { CustomerMeasurementProfileDetail, MeasurementProfileAdminView, ProductBindingView, TemplateTab, TemplateVersionView, TemplateView } from "./admin/types";
 import { isShopifyEmbedded, selectShopifyProduct } from "./admin/shopify";
 
 const categories = Object.entries(garmentCategoryLabels) as Array<[GarmentCategory, string]>;
@@ -29,6 +29,8 @@ export function ConfigAdmin() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [editingBinding, setEditingBinding] = useState<ProductBindingView | null>(null);
+  const [measurementProfiles, setMeasurementProfiles] = useState<MeasurementProfileAdminView[]>([]);
+  const [customerProfileDraft, setCustomerProfileDraft] = useState<CustomerProfileDraft | null>(null);
 
   const filtered = useMemo(() => items.filter((item) => `${item.name}${item.code}${item.categoryLabel}`.toLowerCase().includes(search.toLowerCase())), [items, search]);
   const published = items.filter((item) => item.status === "published").length;
@@ -43,6 +45,7 @@ export function ConfigAdmin() {
   }
 
   async function loadBindings() { const payload = await apiJson<ProductBindingView[]>("/api/products"); setBindings(payload.data ?? []); }
+  async function loadMeasurementProfiles() { const payload = await apiJson<MeasurementProfileAdminView[]>("/api/measurement-profiles"); setMeasurementProfiles(payload.data ?? []); }
   async function loadVersions(templateId = selected) { if (!templateId) return setVersions([]); const payload = await apiJson<TemplateVersionView[]>(`/api/templates/${templateId}/versions`); setVersions(payload.data ?? []); }
   async function loadBindingVersions(templateId: string) { if (!templateId) return setBindingVersions([]); const payload = await apiJson<TemplateVersionView[]>(`/api/templates/${templateId}/versions`); setBindingVersions(payload.data ?? []); }
 
@@ -134,7 +137,33 @@ export function ConfigAdmin() {
   async function syncBinding(binding: ProductBindingView) { await run(async () => { await apiJson(`/api/products/${binding.id}/sync`, { method: "POST" }); await loadBindings(); }, `“${binding.productTitle}”已重新同步`); }
   async function previewBinding(binding: ProductBindingView) { await run(async () => { const payload = await apiJson<unknown>(`/api/products/${binding.id}/storefront-preview`); alert(JSON.stringify(payload.data, null, 2)); }, `已生成“${binding.productTitle}”的 Storefront 配置`); }
 
-  function navigate(next: AdminView) { setView(next); setNotice(null); if (next === "products") void loadBindings(); }
+  function newCustomerProfile() {
+    const binding = bindings.find((item) => item.enabled);
+    setCustomerProfileDraft({ id: "", shopId: binding?.shopId ?? "", customerId: "", unit: "CM", schemaVersion: 2, measurements: {} });
+  }
+  async function editCustomerProfile(profile: MeasurementProfileAdminView) {
+    await run(async () => {
+      const payload = await apiJson<CustomerMeasurementProfileDetail>(`/api/measurement-profiles/${profile.id}`);
+      if (!payload.data) throw new Error("客户量体资料不存在");
+      setCustomerProfileDraft({ id: payload.data.id, shopId: payload.data.shopId, customerId: payload.data.customerId ?? "", unit: payload.data.unit, schemaVersion: payload.data.schemaVersion, measurements: payload.data.measurements });
+    }, "已加载客户量体资料");
+  }
+  async function saveCustomerProfile() {
+    if (!customerProfileDraft) return;
+    if (!customerProfileDraft.shopId) return setNotice({ type: "error", text: "请填写店铺域名" });
+    await run(async () => {
+      await apiJson(customerProfileDraft.id ? `/api/measurement-profiles/${customerProfileDraft.id}` : "/api/measurement-profiles", jsonRequest(customerProfileDraft.id ? "PUT" : "POST", { shopId: customerProfileDraft.shopId, customerId: customerProfileDraft.customerId, unit: customerProfileDraft.unit, schemaVersion: customerProfileDraft.schemaVersion, measurements: customerProfileDraft.measurements }));
+      setCustomerProfileDraft(null);
+      await loadMeasurementProfiles();
+    }, customerProfileDraft.id ? "客户量体资料已更新" : "客户量体资料已创建");
+  }
+  async function removeCustomerProfile(profile: MeasurementProfileAdminView) {
+    const ownerLabel = profile.ownerType === "customer" ? `Customer ${profile.customerId}` : `匿名设备 Guest …${profile.id.slice(-8)}`;
+    if (!confirm(`确认删除 ${ownerLabel} 的量体资料？历史订单快照不会被删除。`)) return;
+    await run(async () => { await apiJson(`/api/measurement-profiles/${profile.id}`, { method: "DELETE" }); if (customerProfileDraft?.id === profile.id) setCustomerProfileDraft(null); await loadMeasurementProfiles(); }, "客户量体资料已删除");
+  }
+
+  function navigate(next: AdminView) { setView(next); setNotice(null); if (next === "products") void loadBindings(); if (next === "customers") void loadMeasurementProfiles().catch((error: Error) => setNotice({ type: "error", text: error.message })); }
   function openTab(next: TemplateTab) { setTab(next); if (next === "versions") void loadVersions(); }
 
   return <AdminShell view={view} onNavigate={navigate}>
@@ -148,7 +177,31 @@ export function ConfigAdmin() {
       onAddBlock={addMeasurementBlock} onUpdateBlock={updateMeasurementBlock} onRemoveBlock={removeMeasurementBlock} onAddField={addMeasurementField} onUpdateField={updateMeasurementField} onRemoveField={removeMeasurementField}
     />}
     {view === "products" && <ProductBindingsNew items={items} bindings={bindings} editing={editingBinding} versions={bindingVersions} embedded={isShopifyEmbedded()} onPick={pickProduct} onNew={newBinding} onEdit={editBinding} onRemove={removeBinding} onSync={syncBinding} onPreview={previewBinding} onChange={(binding) => setEditingBinding(binding)} onTemplateChange={(templateId) => { if (!editingBinding) return; setEditingBinding({ ...editingBinding, templateId, publishedVersion: null }); void loadBindingVersions(templateId); }} onCancel={() => setEditingBinding(null)} onSave={saveBinding} />}
+    {view === "customers" && <CustomerProfiles profiles={measurementProfiles} bindings={bindings} templates={items} draft={customerProfileDraft} onDraft={setCustomerProfileDraft} onNew={newCustomerProfile} onEdit={(profile) => void editCustomerProfile(profile)} onDelete={(profile) => void removeCustomerProfile(profile)} onSave={() => void saveCustomerProfile()} onCancel={() => setCustomerProfileDraft(null)} onRefresh={() => void loadMeasurementProfiles().catch((error: Error) => setNotice({ type: "error", text: error.message }))} />}
   </AdminShell>;
+}
+
+type CustomerProfileDraft = { id: string; shopId: string; customerId: string; unit: "CM" | "IN"; schemaVersion: number; measurements: Record<string, number | string> };
+
+function CustomerProfiles({ profiles, bindings, templates, draft, onDraft, onNew, onEdit, onDelete, onSave, onCancel, onRefresh }: { profiles: MeasurementProfileAdminView[]; bindings: ProductBindingView[]; templates: TemplateView[]; draft: CustomerProfileDraft | null; onDraft: (draft: CustomerProfileDraft | null) => void; onNew: () => void; onEdit: (profile: MeasurementProfileAdminView) => void; onDelete: (profile: MeasurementProfileAdminView) => void; onSave: () => void; onCancel: () => void; onRefresh: () => void }) {
+  const customerCount = profiles.filter((profile) => profile.ownerType === "customer").length;
+  const guestCount = profiles.length - customerCount;
+  const activeGuestCount = profiles.filter((profile) => profile.ownerType === "guest" && profile.expiresAt && new Date(profile.expiresAt) > new Date()).length;
+  const shops = [...new Set(bindings.map((item) => item.shopId))];
+  const fieldNames = new Map(templates.flatMap((template) => template.config.measurementBlocks.flatMap((block) => block.fields.map((field) => [field.code, field.name] as const))));
+  const commonFieldNames: Record<string, string> = { height: "身高", weight: "体重", sleeve_length: "袖长", chest: "胸围", waist: "腰围", hip: "臀围", shoulder_width: "肩宽", inseam: "裤内长", neck: "领围" };
+  function fieldName(code: string) { return fieldNames.get(code) ?? commonFieldNames[code] ?? (/^field_(\d+)$/.exec(code)?.[1] ? `量体字段 ${/^field_(\d+)$/.exec(code)?.[1]}` : code); }
+  function removeField(code: string) { if (!draft) return; const next = { ...draft.measurements }; delete next[code]; onDraft({ ...draft, measurements: next }); }
+  return <>
+    <div className="head"><div><h2>客户量体资料</h2><p>已登录客户支持新增、修改和删除；匿名设备资料仅显示状态。</p></div><div className="actions"><button className="secondary" onClick={onRefresh}>刷新</button><button className="primary" onClick={onNew}>＋ 添加客户资料</button></div></div>
+    <section className="stats"><Stat label="资料总数" value={profiles.length}/><Stat label="登录客户" value={customerCount}/><Stat label="匿名资料" value={guestCount}/><Stat label="有效匿名资料" value={activeGuestCount}/></section>
+    {draft && <div className="panel binding-form"><Section title={draft.id ? (draft.customerId ? `编辑 Customer ${draft.customerId}` : "编辑匿名设备资料") : "添加已登录客户量体资料"}/><div className="form"><Field label={draft.id && !draft.customerId ? "资料归属" : "客户 ID"}><input value={draft.id && !draft.customerId ? "匿名设备" : draft.customerId} disabled={Boolean(draft.id)} inputMode="numeric" placeholder="Shopify Customer 数字 ID" onChange={(event) => onDraft({ ...draft, customerId: event.target.value })}/></Field><Field label="店铺"><input value={draft.shopId} disabled={Boolean(draft.id)} list="customer-shop-list" placeholder="example.myshopify.com" onChange={(event) => onDraft({ ...draft, shopId: event.target.value })}/><datalist id="customer-shop-list">{shops.map((shop) => <option key={shop} value={shop}/>)}</datalist></Field><Field label="显示单位"><select value={draft.unit} onChange={(event) => onDraft({ ...draft, unit: event.target.value as "CM" | "IN" })}><option value="CM">CM</option><option value="IN">IN</option></select></Field></div><div className="measurements-table customer-measurements editable"><div className="measurement-labels"><span>量体名称</span><span>数值</span><span>操作</span></div>{Object.entries(draft.measurements).map(([code, value]) => <div className="measure-row" key={code}><strong className="measurement-name" title={`字段编码：${code}`}>{fieldName(code)}</strong><input aria-label={`${fieldName(code)}数值`} type="number" step="any" value={value} onChange={(event) => onDraft({ ...draft, measurements: { ...draft.measurements, [code]: event.target.value } })}/><button className="delete" onClick={() => removeField(code)}>删除</button></div>)}{!Object.keys(draft.measurements).length && <div className="empty">暂无量体字段。</div>}</div><div className="actions"><button className="secondary" onClick={onCancel}>取消</button><button className="primary" disabled={(!draft.id && !draft.customerId) || !draft.shopId || !Object.keys(draft.measurements).length || Object.entries(draft.measurements).some(([code, value]) => !code.trim() || value === "")} onClick={onSave}>保存客户资料</button></div></div>}
+    <div className="panel table-wrap"><table><thead><tr><th>归属</th><th>客户/设备</th><th>店铺</th><th>单位</th><th>字段</th><th>更新时间</th><th>过期时间</th><th>状态</th><th>操作</th></tr></thead><tbody>{profiles.map((profile) => {
+      const expired = Boolean(profile.expiresAt && new Date(profile.expiresAt) <= new Date());
+      return <tr key={profile.id}><td><span className={`badge ${profile.ownerType === "customer" ? "published" : "draft"}`}>{profile.ownerType === "customer" ? "登录客户" : "匿名设备"}</span></td><td><strong>{profile.customerId ? `Customer ${profile.customerId}` : `Guest …${profile.id.slice(-8)}`}</strong><small>Schema v{profile.schemaVersion}</small></td><td>{profile.shopId}</td><td>{profile.unit}</td><td>{profile.fieldCount} 项</td><td>{new Date(profile.updatedAt).toLocaleString("zh-CN")}</td><td>{profile.expiresAt ? new Date(profile.expiresAt).toLocaleString("zh-CN") : "账号长期保存"}</td><td><span className={`badge ${expired ? "draft" : "published"}`}>{expired ? "已过期" : "有效"}</span></td><td><button className="link" onClick={() => onEdit(profile)}>编辑</button><button className="link danger-text" onClick={() => onDelete(profile)}>删除</button></td></tr>;
+    })}</tbody></table>{!profiles.length && <div className="empty">暂无已保存的量体资料。可先通过商品定制器保存一条测试资料。</div>}</div>
+    <div className="notice success">登录客户和匿名设备资料均可编辑量体数值；匿名资料仍由 Cookie 身份关联，后台不可改变其归属。删除当前资料不影响历史订单快照。</div>
+  </>;
 }
 
 type TemplateWorkspaceProps = {

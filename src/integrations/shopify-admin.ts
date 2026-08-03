@@ -75,8 +75,9 @@ async function accessToken(shop: string, sessionToken?: string, allowClientCrede
 
 export async function resolveShopifyProduct(request: Request, input: SaveProductBindingInput): Promise<ShopifyProductSnapshot> {
   const local = isLocalRequest(request);
-  const useClientCredentials = local && env.SHOPIFY_AUTH_MODE === "client_credentials";
-  if (local && !useClientCredentials && request.headers.get("X-MTM-Mock-Shopify") === "1" && input.mockProduct) {
+  const useMock = local && request.headers.get("X-MTM-Mock-Shopify") === "1";
+  const useClientCredentials = local && !useMock && env.SHOPIFY_AUTH_MODE === "client_credentials";
+  if (useMock && input.mockProduct) {
     const legacyId = input.shopifyProductGid.split("/").at(-1);
     if (!legacyId) throw new AppError("Mock Shopify Product GID 无效");
     return { shopId: "local-dev.myshopify.com", gid: input.shopifyProductGid, legacyId, title: input.mockProduct.title, handle: input.mockProduct.handle,
@@ -103,7 +104,7 @@ export async function resolveShopifyProduct(request: Request, input: SaveProduct
 }
 
 export async function authenticateAdminList(request: Request) {
-  if (isLocalRequest(request) && request.headers.get("X-MTM-Mock-Shopify") === "1") return env.SHOPIFY_AUTH_MODE === "client_credentials" ? configuredShop() : "local-dev.myshopify.com";
+  if (isLocalRequest(request) && request.headers.get("X-MTM-Mock-Shopify") === "1") return "local-dev.myshopify.com";
   const authorization = request.headers.get("Authorization");
   if (!authorization?.startsWith("Bearer ")) throw new AppError("请从 Shopify Admin 重新打开应用", 401);
   return authenticateSessionToken(authorization.slice(7));

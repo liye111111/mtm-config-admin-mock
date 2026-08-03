@@ -1,6 +1,6 @@
 "use client";
 
-export type AdminView = "templates" | "products";
+export type AdminView = "templates" | "products" | "customers";
 
 export function AdminShell({ view, onNavigate, children }: { view: AdminView; onNavigate: (view: AdminView) => void; children: React.ReactNode }) {
   return <div className="shell">
@@ -9,10 +9,10 @@ export function AdminShell({ view, onNavigate, children }: { view: AdminView; on
       <nav className="nav" aria-label="应用导航">
         <button className={view === "templates" ? "active" : ""} onClick={() => onNavigate("templates")}>定制模板</button>
         <button className={view === "products" ? "active" : ""} onClick={() => onNavigate("products")}>商品绑定</button>
+        <button className={view === "customers" ? "active" : ""} onClick={() => onNavigate("customers")}>客户资料</button>
       </nav>
       <span className="env">Schema v2</span>
     </header>
     <main className="main"><div className="content">{children}</div></main>
   </div>;
 }
-

@@ -55,4 +55,27 @@ export type TemplateVersionView = {
 };
 
 export type TemplateTab = "base" | "components" | "steps" | "measurements" | "versions" | "json";
+
+export type MeasurementProfileAdminView = {
+  id: string;
+  shopId: string;
+  ownerType: "customer" | "guest";
+  customerId: string | null;
+  unit: "CM" | "IN";
+  schemaVersion: number;
+  fieldCount: number;
+  expiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CustomerMeasurementProfileDetail = {
+  id: string;
+  shopId: string;
+  customerId: string | null;
+  unit: "CM" | "IN";
+  schemaVersion: number;
+  measurements: Record<string, number>;
+  updatedAt: string;
+};
 export type MutableMeasurementBlock = MeasurementBlock;

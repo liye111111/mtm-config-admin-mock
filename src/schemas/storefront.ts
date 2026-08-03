@@ -7,7 +7,6 @@ export const validateConfigurationSchema = z.object({
   variantId: requiredId("variantId 必填"),
   configVersion: z.coerce.number().int().positive().optional(),
   selections: z.record(z.string(), z.unknown()).default({}),
-  customerId: z.string().trim().optional(),
 });
 
 export type ValidateConfigurationInput = z.infer<typeof validateConfigurationSchema>;
@@ -16,3 +15,25 @@ export function parseValidateConfiguration(value: unknown): ValidateConfiguratio
 export const createCustomizationSchema = validateConfigurationSchema.extend({ sku: z.string().trim().max(255).optional(), idempotencyKey: z.string().trim().min(8).max(200) });
 export type CreateCustomizationInput = z.infer<typeof createCustomizationSchema>;
 export function parseCreateCustomization(value: unknown): CreateCustomizationInput { return parseWithSchema(createCustomizationSchema, value); }
+
+const guestIdSchema = z.string().uuid().optional();
+const measurementsSchema = z.record(z.string().trim().min(1).max(100), z.coerce.number().finite()).refine((value) => Object.keys(value).length <= 100, "量体字段过多");
+export const measurementProfileQuerySchema = z.object({ productId: requiredId("productId 必填"), guestId: guestIdSchema });
+export const saveMeasurementProfileSchema = measurementProfileQuerySchema.extend({ unit: z.enum(["CM", "IN"]), schemaVersion: z.coerce.number().int().positive().default(1), measurements: measurementsSchema });
+export const claimMeasurementProfileSchema = z.object({ guestId: z.string().uuid(), strategy: z.enum(["use_guest", "keep_customer"]) });
+export type MeasurementProfileQuery = z.infer<typeof measurementProfileQuerySchema>;
+export type SaveMeasurementProfileInput = z.infer<typeof saveMeasurementProfileSchema>;
+export type ClaimMeasurementProfileInput = z.infer<typeof claimMeasurementProfileSchema>;
+export function parseMeasurementProfileQuery(value: unknown): MeasurementProfileQuery { return parseWithSchema(measurementProfileQuerySchema, value); }
+export function parseSaveMeasurementProfile(value: unknown): SaveMeasurementProfileInput { return parseWithSchema(saveMeasurementProfileSchema, value); }
+export function parseClaimMeasurementProfile(value: unknown): ClaimMeasurementProfileInput { return parseWithSchema(claimMeasurementProfileSchema, value); }
+
+export const adminCustomerMeasurementProfileSchema = z.object({
+  shopId: z.string().trim().regex(/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/, "shopId 格式无效"),
+  customerId: z.preprocess((value) => value == null ? "" : String(value), z.union([z.literal(""), z.string().trim().regex(/^\d+$/, "customerId 必须是 Shopify 数字 ID")])),
+  unit: z.enum(["CM", "IN"]),
+  schemaVersion: z.coerce.number().int().positive().default(1),
+  measurements: measurementsSchema,
+});
+export type AdminCustomerMeasurementProfileInput = z.infer<typeof adminCustomerMeasurementProfileSchema>;
+export function parseAdminCustomerMeasurementProfile(value: unknown): AdminCustomerMeasurementProfileInput { return parseWithSchema(adminCustomerMeasurementProfileSchema, value); }

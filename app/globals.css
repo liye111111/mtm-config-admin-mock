@@ -155,6 +155,11 @@ td small{display:block;color:var(--muted);margin-top:3px}
 .measurements-table{overflow-x:auto}
 .measurement-labels,.measure-row{min-width:840px;display:grid;grid-template-columns:1.1fr 1.2fr 75px 80px 80px 70px 70px auto;gap:8px;align-items:center}
 .measurement-labels{padding:8px 0;color:var(--muted);font-size:11px}
+.customer-measurements .measurement-labels,.customer-measurements .measure-row{min-width:720px;grid-template-columns:1.1fr 1.2fr 120px 70px 110px 60px}
+.customer-measurements code{color:var(--muted);font-size:12px}
+.customer-measurements.editable .measurement-labels,.customer-measurements.editable .measure-row{min-width:420px;grid-template-columns:minmax(180px,1fr) minmax(140px,1fr) 70px}
+.customer-measurements .measurement-name{padding:0 10px;font-size:14px;font-weight:600;color:var(--ink)}
+.muted{color:var(--muted);font-size:12px}
 .compact-check,.switch-label{display:flex;align-items:center;gap:7px;min-height:36px}
 .embedded-table{border:1px solid var(--line);border-radius:10px}
 
