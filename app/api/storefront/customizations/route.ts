@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json() as Record<string, unknown>;
     const idempotencyKey = request.headers.get("Idempotency-Key") || body.idempotencyKey;
-    return Response.json(await createCustomization(await authenticateStorefrontIdentity(request), parseCreateCustomization({ ...body, idempotencyKey })), { status: 201, headers: storefrontCors });
+    return Response.json(await createCustomization(await authenticateStorefrontIdentity(request), parseCreateCustomization({ ...body, idempotencyKey }), request.headers.get("X-MTM-Guest-Id")), { status: 201, headers: storefrontCors });
   } catch (error) {
     const status = error instanceof AppError ? error.status : 500;
     return Response.json({ error: error instanceof Error ? error.message : "定制实例创建失败" }, { status, headers: storefrontCors });

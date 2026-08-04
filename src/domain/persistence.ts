@@ -47,7 +47,9 @@ export type ProductBindingRow = {
   updated_at: string;
 };
 
-export type CustomizationInstanceRow = { id: string; shop_id: string; shopify_product_id: string; shopify_variant_id: string; shopify_sku: string | null; template_id: string; template_code: string; template_version: number; schema_version: number; status: "validated" | "added_to_cart"; selection_snapshot_json: string; component_snapshot_json: string; measurement_snapshot_json: string; summary: string; idempotency_key: string; customer_id: string | null; cart_token_hash: string | null; created_at: string; updated_at: string };
+export type CustomizationInstanceRow = { id: string; shop_id: string; shopify_product_id: string; shopify_variant_id: string; shopify_sku: string | null; template_id: string; template_code: string; template_version: number; schema_version: number; status: "validated" | "added_to_cart" | "ordered"; selection_snapshot_json: string; component_snapshot_json: string; measurement_snapshot_json: string; summary: string; idempotency_key: string; customer_id: string | null; cart_token_hash: string | null; created_at: string; updated_at: string };
+
+export type OrderWebhookSnapshotRow = { id: string; shop_id: string; webhook_id: string; topic: string; shopify_order_id: string | null; payload_json: string; status: "received" | "processed" | "failed"; error: string | null; received_at: string; processed_at: string | null };
 
 export type MeasurementProfileRow = {
   id: string;

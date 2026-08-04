@@ -334,7 +334,7 @@ GET /api/admin/audit-logs
 ## 7. Shopify Webhook API（后续阶段）
 
 ```http
-POST /api/webhooks/shopify/orders-create
+POST /api/webhooks/orders-create
 POST /api/webhooks/shopify/orders-updated
 POST /api/webhooks/shopify/app-uninstalled
 ```
@@ -440,7 +440,7 @@ Worker 验证时间窗口、Nonce、防重放签名和客户端权限。
 | 模板 CRUD、发布、版本 API | 已实现阶段一能力 |
 | 商品绑定 API | 已实现阶段一能力 |
 | 客户量体 API | 待后续阶段实现 |
-| Shopify Webhook API | 待后续阶段实现 |
+| Shopify `orders/create` Webhook API | 已完成首版：原始体 HMAC、Webhook ID 幂等、完整快照与量体资料对账 |
 | ERP／MTM API | 待后续阶段实现 |
 | App Proxy HMAC 和 Admin Session Token | 正式上线前实施 |
 
