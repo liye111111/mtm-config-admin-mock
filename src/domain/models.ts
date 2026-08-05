@@ -13,7 +13,7 @@ export function templateView(row: TemplateRow) {
     code: row.code,
     name: row.name,
     category,
-    categoryLabel: garmentCategoryLabels[category],
+    categoryLabel: row.category_label ?? garmentCategoryLabels[category] ?? category,
     status: row.status,
     version: row.version,
     schemaVersion: row.schema_version,

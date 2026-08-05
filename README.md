@@ -63,6 +63,8 @@ npm run build
 - `GET /api/health`
 - `GET /api/measurement-profiles`
 - `GET|POST /api/templates`
+- `GET|POST /api/template-categories`
+- `PUT|DELETE /api/template-categories/:id`
 - `PUT /api/templates/:id`
 - `POST /api/templates/:id/publish`
 - `GET /api/storefront/config/:productId`

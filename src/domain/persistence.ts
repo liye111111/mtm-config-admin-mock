@@ -11,7 +11,10 @@ export type TemplateRow = {
   config_json: string;
   created_at: string;
   updated_at: string;
+  category_label?: string;
 };
+
+export type TemplateCategoryRow = { id: string; code: string; name: string; sort_order: number; created_at: string; updated_at: string; template_count?: number };
 
 export type TemplateVersionRow = {
   id: string;

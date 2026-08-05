@@ -13,6 +13,7 @@ export type TemplateView = {
   createdAt: string;
   updatedAt: string;
 };
+export type TemplateCategoryView = { id:string; code:string; name:string; sortOrder:number; templateCount:number; createdAt:string; updatedAt:string };
 
 export type ProductBindingView = {
   id: string;

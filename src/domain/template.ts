@@ -2,7 +2,7 @@ import type { GarmentCategory, IsoDateTime, TemplateStatus, TemplateType } from 
 import type { MeasurementBlock } from "./measurement";
 import type { CustomizationOption, DisplayType } from "./option";
 
-export type StepType = "variant" | "options" | "components" | "measurements" | "review";
+export type StepType = "variant" | "options" | "components" | "dimensions" | "measurements" | "review";
 
 export type GarmentComponentDefinition = {
   id: string;
@@ -37,6 +37,7 @@ export type TemplateConfig = {
   components: GarmentComponentDefinition[];
   steps: CustomizationStep[];
   measurementBlocks: MeasurementBlock[];
+  dimensionBlocks: MeasurementBlock[];
 };
 
 export type CustomizationTemplate = {

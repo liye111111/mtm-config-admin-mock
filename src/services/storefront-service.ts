@@ -48,6 +48,15 @@ function validateTemplateSelections(config: TemplateConfig, selections: Record<s
       if (!Number.isFinite(value) || value < field.min || value > field.max) throw new AppError(`${field.name}必须在 ${field.min}-${field.max} ${field.standardUnit} 之间`, 422);
     }
   }
+  const dimensions = record(selections.dimensions);
+  for (const block of config.dimensionBlocks.filter((item) => item.enabled)) for (const field of block.fields.filter((item) => item.enabled)) {
+    const raw = dimensions[field.code];
+    if (field.required && (raw === undefined || raw === null || raw === "")) throw new AppError(`请填写${field.name}`, 422);
+    if (raw === undefined || raw === null || raw === "") continue;
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < field.min || value > field.max) throw new AppError(`${field.name}必须在 ${field.min}-${field.max} ${field.standardUnit} 之间`, 422);
+    summary.push(`${field.name} ${value}${field.standardUnit}`);
+  }
 }
 async function validateAuthoritatively(shopId: string, input: ValidateConfigurationInput) {
   const row = await templates.findPublishedTemplateForProduct(shopId, input.productId);

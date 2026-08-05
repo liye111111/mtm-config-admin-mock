@@ -37,6 +37,7 @@ export function ensureDatabase() {
 async function initializeDatabase() {
   const db = database();
   await db.batch([
+    db.prepare("CREATE TABLE IF NOT EXISTS template_categories (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, name TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)"),
     db.prepare("CREATE TABLE IF NOT EXISTS templates (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, name TEXT NOT NULL, category TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', version INTEGER NOT NULL DEFAULT 1, schema_version INTEGER NOT NULL DEFAULT 2, config_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)"),
     db.prepare("CREATE TABLE IF NOT EXISTS template_versions (id TEXT PRIMARY KEY, template_id TEXT NOT NULL, version INTEGER NOT NULL, schema_version INTEGER NOT NULL DEFAULT 2, config_json TEXT NOT NULL, published_at TEXT NOT NULL, UNIQUE(template_id,version))"),
     db.prepare("CREATE TABLE IF NOT EXISTS product_bindings (id TEXT PRIMARY KEY, shop_id TEXT NOT NULL, shopify_product_gid TEXT NOT NULL, shopify_product_id TEXT NOT NULL, product_title TEXT NOT NULL, product_handle TEXT, product_image_url TEXT, product_image_alt TEXT, product_status TEXT NOT NULL, product_kind TEXT NOT NULL, variant_count INTEGER NOT NULL DEFAULT 0, online_store_url TEXT, shopify_admin_url TEXT, template_id TEXT NOT NULL, published_version INTEGER, enabled INTEGER NOT NULL DEFAULT 1, sync_status TEXT NOT NULL DEFAULT 'synced', sync_error TEXT, shopify_updated_at TEXT, last_synced_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(shop_id,shopify_product_gid), UNIQUE(shop_id,shopify_product_id))"),
@@ -48,6 +49,12 @@ async function initializeDatabase() {
     db.prepare("CREATE INDEX IF NOT EXISTS measurement_profiles_expiry_idx ON measurement_profiles(expires_at)"),
     db.prepare("CREATE INDEX IF NOT EXISTS order_webhook_snapshots_order_idx ON order_webhook_snapshots(shop_id,shopify_order_id)"),
   ]);
+  const categoryCount = await db.prepare("SELECT COUNT(*) count FROM template_categories").first<{count:number}>();
+  if (!categoryCount?.count) {
+    const now = new Date().toISOString();
+    const seeds = [{code:"suit",name:"套装",sortOrder:10},{code:"jacket",name:"西服",sortOrder:20},{code:"trousers",name:"西裤",sortOrder:30},{code:"shirt",name:"衬衫",sortOrder:40},{code:"waistcoat",name:"马甲",sortOrder:50},{code:"curtain",name:"窗帘",sortOrder:60}];
+    await db.batch(seeds.map(({code,name,sortOrder}) => db.prepare("INSERT INTO template_categories (id,code,name,sort_order,created_at,updated_at) VALUES (?,?,?,?,?,?)").bind(`category-${code}`,code,name,sortOrder,now,now)));
+  }
   const columns = await db.prepare("PRAGMA table_info(templates)").all<{ name: string }>();
   if (!columns.results.some((column: { name: string }) => column.name === "category")) await db.prepare("ALTER TABLE templates ADD COLUMN category TEXT NOT NULL DEFAULT '西服'").run();
   if (!columns.results.some((column: { name: string }) => column.name === "schema_version")) await db.prepare("ALTER TABLE templates ADD COLUMN schema_version INTEGER NOT NULL DEFAULT 2").run();

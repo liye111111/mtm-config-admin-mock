@@ -4,7 +4,7 @@ import { AppError } from "@/src/shared/errors";
 import { parseWithSchema } from "./parse";
 
 const codeSchema = z.string().trim().min(1, "编码不能为空").regex(/^[a-z][a-z0-9_]*$/, "编码必须以小写英文字母开头，并且只能包含小写字母、数字和下划线");
-export const garmentCategorySchema = z.enum(["suit", "jacket", "trousers", "shirt", "waistcoat"]);
+export const garmentCategorySchema = codeSchema;
 const measurementUnitSchema = z.enum(["CM", "IN", "KG"]);
 
 export const customizationOptionSchema = z.object({
@@ -25,7 +25,7 @@ export const customizationStepSchema = z.object({
   code: codeSchema,
   title: z.string().trim().min(1, "步骤名称不能为空"),
   description: z.string().trim().optional(),
-  type: z.enum(["variant", "options", "components", "measurements", "review"]),
+  type: z.enum(["variant", "options", "components", "dimensions", "measurements", "review"]),
   displayType: z.enum(["image_card", "color_swatch", "radio", "select", "text_input"]).optional(),
   required: z.boolean(),
   enabled: z.boolean(),
@@ -79,10 +79,11 @@ export const templateConfigSchema = z.object({
   components: z.array(garmentComponentSchema),
   steps: z.array(customizationStepSchema),
   measurementBlocks: z.array(measurementBlockSchema),
+  dimensionBlocks: z.array(measurementBlockSchema).default([]),
 });
 
 export function createEmptyTemplateConfig(): TemplateConfig {
-  return { schemaVersion: 2, buttonLabel: "开始定制", pricingMode: "none", templateType: "single", orderLineMode: "single_line", components: [], steps: [], measurementBlocks: [] };
+  return { schemaVersion: 2, buttonLabel: "开始定制", pricingMode: "none", templateType: "single", orderLineMode: "single_line", components: [], steps: [], measurementBlocks: [], dimensionBlocks: [] };
 }
 
 export function parseStoredTemplateConfig(json: string, schemaVersion: number): TemplateConfig {

@@ -5,11 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import { garmentCategoryLabels, type CustomizationOption, type CustomizationStep, type GarmentCategory, type GarmentComponentDefinition, type MeasurementBlock, type MeasurementFieldDefinition, type TemplateType } from "@/src/domain";
 import { apiJson, jsonRequest } from "./admin/api";
 import { AdminShell, type AdminView } from "./admin/app-shell";
-import type { CustomerMeasurementProfileDetail, MeasurementProfileAdminView, ProductBindingView, TemplateTab, TemplateVersionView, TemplateView } from "./admin/types";
+import type { CustomerMeasurementProfileDetail, MeasurementProfileAdminView, ProductBindingView, TemplateCategoryView, TemplateTab, TemplateVersionView, TemplateView } from "./admin/types";
 import { isShopifyEmbedded, selectShopifyProduct } from "./admin/shopify";
 
-const categories = Object.entries(garmentCategoryLabels) as Array<[GarmentCategory, string]>;
-const stepTypes: Array<[CustomizationStep["type"], string]> = [["variant", "SKU 选择"], ["options", "定制选项"], ["components", "组合/套装"], ["measurements", "量体尺寸"], ["review", "配置确认"]];
+const stepTypes: Array<[CustomizationStep["type"], string]> = [["variant", "SKU 选择"], ["options", "定制选项"], ["components", "组合/套装"], ["dimensions", "成品尺寸"], ["measurements", "量体尺寸"], ["review", "配置确认"]];
 const displayTypes = [["image_card", "图片卡片"], ["color_swatch", "色卡"], ["radio", "单选"], ["select", "下拉选择"], ["text_input", "文本输入"]] as const;
 
 function clone<T>(value: T): T { return structuredClone(value); }
@@ -31,6 +30,8 @@ export function ConfigAdmin() {
   const [editingBinding, setEditingBinding] = useState<ProductBindingView | null>(null);
   const [measurementProfiles, setMeasurementProfiles] = useState<MeasurementProfileAdminView[]>([]);
   const [customerProfileDraft, setCustomerProfileDraft] = useState<CustomerProfileDraft | null>(null);
+  const [categories, setCategories] = useState<TemplateCategoryView[]>([]);
+  const [categoryDraft, setCategoryDraft] = useState<{id:string;code:string;name:string;sortOrder:number}|null>(null);
 
   const filtered = useMemo(() => items.filter((item) => `${item.name}${item.code}${item.categoryLabel}`.toLowerCase().includes(search.toLowerCase())), [items, search]);
   const published = items.filter((item) => item.status === "published").length;
@@ -45,13 +46,14 @@ export function ConfigAdmin() {
   }
 
   async function loadBindings() { const payload = await apiJson<ProductBindingView[]>("/api/products"); setBindings(payload.data ?? []); }
+  async function loadCategories() { const payload=await apiJson<TemplateCategoryView[]>("/api/template-categories"); setCategories(payload.data ?? []); }
   async function loadMeasurementProfiles() { const payload = await apiJson<MeasurementProfileAdminView[]>("/api/measurement-profiles"); setMeasurementProfiles(payload.data ?? []); }
   async function loadVersions(templateId = selected) { if (!templateId) return setVersions([]); const payload = await apiJson<TemplateVersionView[]>(`/api/templates/${templateId}/versions`); setVersions(payload.data ?? []); }
   async function loadBindingVersions(templateId: string) { if (!templateId) return setBindingVersions([]); const payload = await apiJson<TemplateVersionView[]>(`/api/templates/${templateId}/versions`); setBindingVersions(payload.data ?? []); }
 
   // Initial API hydration intentionally updates local UI state.
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
-  useEffect(() => { void Promise.all([loadTemplates(), loadBindings()]).catch((error: Error) => setNotice({ type: "error", text: error.message })); }, []);
+  useEffect(() => { void Promise.all([loadTemplates(), loadBindings(), loadCategories()]).catch((error: Error) => setNotice({ type: "error", text: error.message })); }, []);
 
   useEffect(() => {
     if (!draft || (tab !== "components" && tab !== "steps")) return;
@@ -163,25 +165,33 @@ export function ConfigAdmin() {
     await run(async () => { await apiJson(`/api/measurement-profiles/${profile.id}`, { method: "DELETE" }); if (customerProfileDraft?.id === profile.id) setCustomerProfileDraft(null); await loadMeasurementProfiles(); }, "客户量体资料已删除");
   }
 
-  function navigate(next: AdminView) { setView(next); setNotice(null); if (next === "products") void loadBindings(); if (next === "customers") void loadMeasurementProfiles().catch((error: Error) => setNotice({ type: "error", text: error.message })); }
+  async function saveCategory() { if(!categoryDraft)return; await run(async()=>{ await apiJson(categoryDraft.id?`/api/template-categories/${categoryDraft.id}`:"/api/template-categories",jsonRequest(categoryDraft.id?"PUT":"POST",categoryDraft)); setCategoryDraft(null); await Promise.all([loadCategories(),loadTemplates()]); },categoryDraft.id?"品类已更新":"品类已创建"); }
+  async function removeCategory(category:TemplateCategoryView) { if(!confirm(`确认删除品类“${category.name}”？`))return; await run(async()=>{ await apiJson(`/api/template-categories/${category.id}`,{method:"DELETE"}); await loadCategories(); },"品类已删除"); }
+
+  function navigate(next: AdminView) { setView(next); setNotice(null); if (next === "categories") void loadCategories(); if (next === "products") void loadBindings(); if (next === "customers") void loadMeasurementProfiles().catch((error: Error) => setNotice({ type: "error", text: error.message })); }
   function openTab(next: TemplateTab) { setTab(next); if (next === "versions") void loadVersions(); }
 
   return <AdminShell view={view} onNavigate={navigate}>
     {notice && <div className={`notice ${notice.type}`}>{notice.text}</div>}
     {view === "templates" && <TemplateWorkspace
-      items={items} filtered={filtered} draft={draft} selected={selected} published={published} bindings={bindings} search={search} tab={tab} versions={versions} busy={busy}
+      items={items} categories={categories} filtered={filtered} draft={draft} selected={selected} published={published} bindings={bindings} search={search} tab={tab} versions={versions} busy={busy}
       onSearch={setSearch} onChoose={choose} onCreate={() => create()} onCopy={() => draft && create(draft)} onDelete={removeTemplate} onSave={() => save()} onPublish={() => save(true)} onTab={openTab}
       onDraft={updateDraft} onTemplateType={setTemplateType}
       onAddComponent={addComponent} onUpdateComponent={updateComponent} onRemoveComponent={removeComponent}
       onAddStep={addStep} onUpdateStep={updateStep} onRemoveStep={removeStep} onAddOption={addOption} onUpdateOption={updateOption} onRemoveOption={removeOption}
       onAddBlock={addMeasurementBlock} onUpdateBlock={updateMeasurementBlock} onRemoveBlock={removeMeasurementBlock} onAddField={addMeasurementField} onUpdateField={updateMeasurementField} onRemoveField={removeMeasurementField}
     />}
+    {view === "categories" && <TemplateCategories categories={categories} draft={categoryDraft} onDraft={setCategoryDraft} onSave={()=>void saveCategory()} onDelete={(category)=>void removeCategory(category)}/>}
     {view === "products" && <ProductBindingsNew items={items} bindings={bindings} editing={editingBinding} versions={bindingVersions} embedded={isShopifyEmbedded()} onPick={pickProduct} onNew={newBinding} onEdit={editBinding} onRemove={removeBinding} onSync={syncBinding} onPreview={previewBinding} onChange={(binding) => setEditingBinding(binding)} onTemplateChange={(templateId) => { if (!editingBinding) return; setEditingBinding({ ...editingBinding, templateId, publishedVersion: null }); void loadBindingVersions(templateId); }} onCancel={() => setEditingBinding(null)} onSave={saveBinding} />}
     {view === "customers" && <CustomerProfiles profiles={measurementProfiles} bindings={bindings} templates={items} draft={customerProfileDraft} onDraft={setCustomerProfileDraft} onNew={newCustomerProfile} onEdit={(profile) => void editCustomerProfile(profile)} onDelete={(profile) => void removeCustomerProfile(profile)} onSave={() => void saveCustomerProfile()} onCancel={() => setCustomerProfileDraft(null)} onRefresh={() => void loadMeasurementProfiles().catch((error: Error) => setNotice({ type: "error", text: error.message }))} />}
   </AdminShell>;
 }
 
 type CustomerProfileDraft = { id: string; shopId: string; customerId: string; unit: "CM" | "IN"; schemaVersion: number; measurements: Record<string, number | string> };
+
+function TemplateCategories({categories,draft,onDraft,onSave,onDelete}:{categories:TemplateCategoryView[];draft:{id:string;code:string;name:string;sortOrder:number}|null;onDraft:(value:{id:string;code:string;name:string;sortOrder:number}|null)=>void;onSave:()=>void;onDelete:(category:TemplateCategoryView)=>void}) {
+  return <><div className="head"><div><h2>模板品类</h2><p>维护模板可选品类；已有模板引用的品类不能删除。</p></div><button className="primary" onClick={()=>onDraft({id:"",code:"",name:"",sortOrder:categories.length*10+10})}>＋ 新建品类</button></div>{draft&&<section className="panel binding-form"><div className="form"><Field label="品类编码"><input value={draft.code} disabled={Boolean(draft.id)} onChange={(event)=>onDraft({...draft,code:event.target.value})}/></Field><Field label="品类名称"><input value={draft.name} onChange={(event)=>onDraft({...draft,name:event.target.value})}/></Field><Field label="排序"><input type="number" min="0" value={draft.sortOrder} onChange={(event)=>onDraft({...draft,sortOrder:Number(event.target.value)})}/></Field></div><div className="actions"><button className="secondary" onClick={()=>onDraft(null)}>取消</button><button className="primary" disabled={!draft.code.trim()||!draft.name.trim()} onClick={onSave}>保存品类</button></div></section>}<div className="panel table-wrap"><table><thead><tr><th>名称</th><th>编码</th><th>排序</th><th>模板数</th><th>操作</th></tr></thead><tbody>{categories.map((category)=><tr key={category.id}><td><strong>{category.name}</strong></td><td><code>{category.code}</code></td><td>{category.sortOrder}</td><td>{category.templateCount}</td><td><button className="link" onClick={()=>onDraft({id:category.id,code:category.code,name:category.name,sortOrder:category.sortOrder})}>编辑</button><button className="link danger-text" disabled={category.templateCount>0} title={category.templateCount>0?"该品类下已有模板，不能删除":""} onClick={()=>onDelete(category)}>删除</button></td></tr>)}</tbody></table></div></>;
+}
 
 function CustomerProfiles({ profiles, bindings, templates, draft, onDraft, onNew, onEdit, onDelete, onSave, onCancel, onRefresh }: { profiles: MeasurementProfileAdminView[]; bindings: ProductBindingView[]; templates: TemplateView[]; draft: CustomerProfileDraft | null; onDraft: (draft: CustomerProfileDraft | null) => void; onNew: () => void; onEdit: (profile: MeasurementProfileAdminView) => void; onDelete: (profile: MeasurementProfileAdminView) => void; onSave: () => void; onCancel: () => void; onRefresh: () => void }) {
   const customerCount = profiles.filter((profile) => profile.ownerType === "customer").length;
@@ -212,7 +222,7 @@ function CustomerProfiles({ profiles, bindings, templates, draft, onDraft, onNew
 }
 
 type TemplateWorkspaceProps = {
-  items: TemplateView[]; filtered: TemplateView[]; draft: TemplateView | null; selected: string; published: number; bindings: ProductBindingView[]; search: string; tab: TemplateTab; versions: TemplateVersionView[]; busy: boolean;
+  items: TemplateView[]; categories: TemplateCategoryView[]; filtered: TemplateView[]; draft: TemplateView | null; selected: string; published: number; bindings: ProductBindingView[]; search: string; tab: TemplateTab; versions: TemplateVersionView[]; busy: boolean;
   onSearch: (value: string) => void; onChoose: (item: TemplateView) => void; onCreate: () => void; onCopy: () => void; onDelete: () => void; onSave: () => void; onPublish: () => void; onTab: (tab: TemplateTab) => void;
   onDraft: (update: (draft: TemplateView) => void) => void; onTemplateType: (type: TemplateType) => void;
   onAddComponent: () => void; onUpdateComponent: (index: number, key: keyof GarmentComponentDefinition, value: string | boolean | number) => void; onRemoveComponent: (index: number) => void;
@@ -232,8 +242,8 @@ function TemplateWorkspace(props: TemplateWorkspaceProps) {
       <section className="panel">{!draft ? <div className="empty">暂无模板，请新建</div> : <div className="editor">
         <div className="editor-head"><div><h3>{draft.name}</h3><p>{draft.code} · 当前版本 v{draft.version} · Schema v{draft.schemaVersion}</p></div><div className="actions"><button className="secondary" onClick={props.onCopy}>复制</button><button className="danger" onClick={props.onDelete}>删除</button><button className="secondary" disabled={props.busy} onClick={props.onSave}>保存草稿</button><button className="primary" disabled={props.busy} onClick={props.onPublish}>校验并发布</button></div></div>
         <div className="tabs">{([['base','基础信息'],['components','组合/套装'],['steps','定制步骤'],['measurements','尺寸定义'],['versions','发布记录'],['json','JSON 预览']] as Array<[TemplateTab,string]>).filter(([key]) => key !== "components" || draft.config.templateType === "composite").map(([key,label]) => <button key={key} className={props.tab === key ? "active" : ""} onClick={() => props.onTab(key)}>{label}</button>)}</div>
-        {props.tab === "base" && <BaseTab draft={draft} onDraft={props.onDraft} onTemplateType={props.onTemplateType}/>}
-        {props.tab === "components" && <ComponentsTab draft={draft} items={props.items} onAdd={props.onAddComponent} onUpdate={props.onUpdateComponent} onRemove={props.onRemoveComponent}/>}
+        {props.tab === "base" && <BaseTab draft={draft} categories={props.categories} onDraft={props.onDraft} onTemplateType={props.onTemplateType}/>}
+        {props.tab === "components" && <ComponentsTab draft={draft} items={props.items} categories={props.categories} onAdd={props.onAddComponent} onUpdate={props.onUpdateComponent} onRemove={props.onRemoveComponent}/>}
         {props.tab === "steps" && <StepsTab draft={draft} onAdd={props.onAddStep} onUpdate={props.onUpdateStep} onRemove={props.onRemoveStep} onAddOption={props.onAddOption} onUpdateOption={props.onUpdateOption} onRemoveOption={props.onRemoveOption}/>}
         {props.tab === "measurements" && <MeasurementsTab draft={draft} onAddBlock={props.onAddBlock} onUpdateBlock={props.onUpdateBlock} onRemoveBlock={props.onRemoveBlock} onAddField={props.onAddField} onUpdateField={props.onUpdateField} onRemoveField={props.onRemoveField}/>}
         {props.tab === "versions" && <VersionsTab versions={props.versions}/>}
@@ -243,11 +253,12 @@ function TemplateWorkspace(props: TemplateWorkspaceProps) {
   </>;
 }
 
-function BaseTab({ draft, onDraft, onTemplateType }: { draft: TemplateView; onDraft: TemplateWorkspaceProps["onDraft"]; onTemplateType: (type: TemplateType) => void }) {
-  return <div className="form form-section"><Field label="模板名称"><input value={draft.name} onChange={(event) => onDraft((next) => { next.name = event.target.value; })}/></Field><Field label="模板编码"><input value={draft.code} onChange={(event) => onDraft((next) => { next.code = event.target.value; })}/></Field><Field label="模板类型"><select value={draft.config.templateType} onChange={(event) => onTemplateType(event.target.value as TemplateType)}><option value="single">单品模板</option><option value="composite">组合/套装模板</option></select></Field><Field label="适用品类"><select value={draft.category} disabled={draft.config.templateType === "composite"} onChange={(event) => onDraft((next) => { next.category = event.target.value as GarmentCategory; })}>{categories.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="前台按钮文字"><input value={draft.config.buttonLabel} onChange={(event) => onDraft((next) => { next.config.buttonLabel = event.target.value; })}/></Field><Field label="价格规则"><input value="所有定制项不影响价格" disabled/></Field></div>;
+function BaseTab({ draft, categories, onDraft, onTemplateType }: { draft: TemplateView; categories:TemplateCategoryView[]; onDraft: TemplateWorkspaceProps["onDraft"]; onTemplateType: (type: TemplateType) => void }) {
+  return <div className="form form-section"><Field label="模板名称"><input value={draft.name} onChange={(event) => onDraft((next) => { next.name = event.target.value; })}/></Field><Field label="模板编码"><input value={draft.code} onChange={(event) => onDraft((next) => { next.code = event.target.value; })}/></Field><Field label="模板类型"><select value={draft.config.templateType} onChange={(event) => onTemplateType(event.target.value as TemplateType)}><option value="single">单品模板</option><option value="composite">组合/套装模板</option></select></Field><Field label="适用品类"><select value={draft.category} disabled={draft.config.templateType === "composite"} onChange={(event) => onDraft((next) => { next.category = event.target.value as GarmentCategory; })}>{categories.map((category) => <option key={category.code} value={category.code}>{category.name}</option>)}</select></Field><Field label="前台按钮文字"><input value={draft.config.buttonLabel} onChange={(event) => onDraft((next) => { next.config.buttonLabel = event.target.value; })}/></Field><Field label="价格规则"><input value="所有定制项不影响价格" disabled/></Field></div>;
 }
 
-function ComponentsTab({ draft, items, onAdd, onUpdate, onRemove }: { draft: TemplateView; items: TemplateView[]; onAdd: () => void; onUpdate: TemplateWorkspaceProps["onUpdateComponent"]; onRemove: (index: number) => void }) {
+function ComponentsTab({ draft, items, categories:categoryRows, onAdd, onUpdate, onRemove }: { draft: TemplateView; items: TemplateView[]; categories:TemplateCategoryView[]; onAdd: () => void; onUpdate: TemplateWorkspaceProps["onUpdateComponent"]; onRemove: (index: number) => void }) {
+  const categories=categoryRows.map((category)=>[category.code,category.name] as const);
   if (draft.config.templateType !== "composite") return <div className="empty">单品模板不包含组合/套装配置。</div>;
   const childTemplates = items.filter((item) => item.id !== draft.id && item.status === "published" && item.config.templateType === "single");
   return <><Section title="固定逻辑组件" action={<button className="secondary" onClick={onAdd}>＋ 添加组件</button>}/><p className="section-help">上衣、西裤和马甲是生产逻辑组件，不是 Shopify 独立商品；消费者不能增删。</p><div className="steps">{sortByOrder(draft.config.components).map((component, index) => <div className="step" key={component.id}><div className="component-grid"><Field label="组件名称"><input value={component.name} onChange={(event) => onUpdate(index, "name", event.target.value)}/></Field><Field label="组件编码"><input value={component.code} onChange={(event) => onUpdate(index, "code", event.target.value)}/></Field><Field label="组件品类"><select value={component.category} onChange={(event) => onUpdate(index, "category", event.target.value)}>{categories.filter(([value]) => value !== "suit").map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="子定制模板"><select value={component.childTemplateId} onChange={(event) => onUpdate(index, "childTemplateId", event.target.value)}><option value="">请选择已发布单品模板</option>{childTemplates.filter((item) => item.category === component.category).map((item) => <option key={item.id} value={item.id}>{item.name} · v{item.version}</option>)}</select></Field><Field label="排序"><input type="number" min="0" value={component.sortOrder} onChange={(event) => onUpdate(index, "sortOrder", Number(event.target.value))}/></Field></div><div className="row-actions"><label><input type="checkbox" checked={component.customizationEnabled} onChange={(event) => onUpdate(index, "customizationEnabled", event.target.checked)}/> 启用定制</label><label><input type="checkbox" checked={component.required} onChange={(event) => onUpdate(index, "required", event.target.checked)}/> 必需组件</label><button className="delete" onClick={() => onRemove(index)}>删除组件</button></div></div>)}{!draft.config.components.length && <div className="empty">暂无逻辑组件。</div>}</div></>;

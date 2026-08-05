@@ -2,9 +2,10 @@ import type { SaveTemplateInput } from "@/src/schemas/template";
 import { TEMPLATE_SCHEMA_VERSION, type TemplateConfig, type TemplateRow, type TemplateVersionRow } from "@/src/domain";
 import { database, ensureDatabase } from "./database";
 
-export async function listTemplates() { await ensureDatabase(); return (await database().prepare("SELECT * FROM templates ORDER BY updated_at DESC").all<TemplateRow>()).results; }
-export async function findTemplate(id: string) { await ensureDatabase(); return database().prepare("SELECT * FROM templates WHERE id=?").bind(id).first<TemplateRow>(); }
-export async function findPublishedTemplate(id: string) { await ensureDatabase(); return database().prepare("SELECT * FROM templates WHERE id=? AND status='published'").bind(id).first<TemplateRow>(); }
+const templateSelect="SELECT t.*,c.name category_label FROM templates t LEFT JOIN template_categories c ON c.code=t.category";
+export async function listTemplates() { await ensureDatabase(); return (await database().prepare(`${templateSelect} ORDER BY t.updated_at DESC`).all<TemplateRow>()).results; }
+export async function findTemplate(id: string) { await ensureDatabase(); return database().prepare(`${templateSelect} WHERE t.id=?`).bind(id).first<TemplateRow>(); }
+export async function findPublishedTemplate(id: string) { await ensureDatabase(); return database().prepare(`${templateSelect} WHERE t.id=? AND t.status='published'`).bind(id).first<TemplateRow>(); }
 export async function findTemplateVersion(id: string, version: number) { await ensureDatabase(); return database().prepare("SELECT id,template_id,version,schema_version,config_json,published_at FROM template_versions WHERE template_id=? AND version=?").bind(id, version).first<TemplateVersionRow>(); }
 export async function findPublishedTemplateForProduct(shopId: string, productId: string) {
   await ensureDatabase();
