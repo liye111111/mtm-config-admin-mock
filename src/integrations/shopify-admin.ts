@@ -7,6 +7,12 @@ export type ShopifyProductSnapshot = {
   status: "ACTIVE" | "DRAFT" | "ARCHIVED"; variantCount: number; hasAvailableVariant: boolean; onlineStoreUrl?: string; adminUrl: string; updatedAt?: string;
 };
 
+export type ShopifyCustomizationMarker = {
+  enabled: boolean;
+  templateCode?: string;
+  templateVersion?: number;
+};
+
 type SessionClaims = { aud?: string; dest?: string; exp?: number; nbf?: number };
 type CachedToken = { value: string; expiresAt: number };
 let clientCredentialsToken: CachedToken | undefined;
@@ -71,6 +77,33 @@ async function accessToken(shop: string, sessionToken?: string, allowClientCrede
   const payload = await response.json() as { access_token?: string };
   if (!payload.access_token) throw new AppError("Shopify Admin API 未返回访问令牌", 502);
   return payload.access_token;
+}
+
+async function mutationContext(request: Request, expectedShop: string) {
+  const local = isLocalRequest(request);
+  if (local && request.headers.get("X-MTM-Mock-Shopify") === "1") return null;
+  const useClientCredentials = local && env.SHOPIFY_AUTH_MODE === "client_credentials";
+  const authorization = request.headers.get("Authorization");
+  const sessionToken = authorization?.startsWith("Bearer ") ? authorization.slice(7) : undefined;
+  const shop = useClientCredentials ? configuredShop() : await authenticateSessionToken(sessionToken || "");
+  if (shop !== expectedShop) throw new AppError("Shopify 店铺身份不匹配", 403);
+  return { shop, token: await accessToken(shop, sessionToken, useClientCredentials) };
+}
+
+export async function setShopifyCustomizationMarker(request: Request, productGid: string, shop: string, marker: ShopifyCustomizationMarker) {
+  const context = await mutationContext(request, shop);
+  if (!context) return;
+  const response = await fetch(`https://${context.shop}/admin/api/2026-07/graphql.json`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": context.token },
+    body: JSON.stringify({
+      query: `mutation SetCustomizationMarker($metafields: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message code } } }`,
+      variables: { metafields: [{ ownerId: productGid, namespace: "mtm", key: "customization", type: "json", value: JSON.stringify(marker) }] },
+    }),
+  });
+  const payload = await response.json() as { data?: { metafieldsSet?: { userErrors: Array<{ message: string }> } }; errors?: Array<{ message: string }> };
+  const error = payload.errors?.[0]?.message || payload.data?.metafieldsSet?.userErrors?.[0]?.message;
+  if (!response.ok || error) throw new AppError(error || "Shopify 定制标记写入失败", 502);
 }
 
 export async function resolveShopifyProduct(request: Request, input: SaveProductBindingInput): Promise<ShopifyProductSnapshot> {

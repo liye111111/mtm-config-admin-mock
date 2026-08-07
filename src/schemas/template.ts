@@ -20,17 +20,37 @@ export const customizationOptionSchema = z.object({
   affectsPrice: z.literal(false),
 });
 
+export const textInputConfigSchema = z.object({
+  minLength: z.number().int().nonnegative("最小字符数不能小于 0"),
+  maxLength: z.number().int().positive("最大字符数必须大于 0").max(200, "最大字符数不能超过 200"),
+  placeholder: z.string().trim().max(100, "占位文案不能超过 100 个字符").optional(),
+  characterPolicy: z.enum(["letters_only", "letters_numbers_spaces", "unicode_text"]),
+}).refine((config) => config.minLength <= config.maxLength, { message: "最小字符数不能大于最大字符数", path: ["minLength"] });
+
+const embroideryChoiceSchema = z.object({
+  code: codeSchema,
+  name: z.string().trim().min(1, "刺绣字典名称不能为空"),
+});
+
+export const embroideryConfigSchema = z.object({
+  positions: z.array(embroideryChoiceSchema).min(1, "至少需要一个刺绣位置"),
+  fonts: z.array(embroideryChoiceSchema).min(1, "至少需要一种刺绣字体"),
+  colors: z.array(embroideryChoiceSchema).min(1, "至少需要一种刺绣颜色"),
+});
+
 export const customizationStepSchema = z.object({
   id: z.string().trim().min(1),
   code: codeSchema,
   title: z.string().trim().min(1, "步骤名称不能为空"),
   description: z.string().trim().optional(),
-  type: z.enum(["variant", "options", "components", "dimensions", "measurements", "review"]),
+  type: z.enum(["variant", "options", "embroidery", "components", "dimensions", "measurements", "review"]),
   displayType: z.enum(["image_card", "color_swatch", "radio", "select", "text_input"]).optional(),
   required: z.boolean(),
   enabled: z.boolean(),
   sortOrder: z.number().int().nonnegative(),
   options: z.array(customizationOptionSchema),
+  textInput: textInputConfigSchema.optional(),
+  embroidery: embroideryConfigSchema.optional(),
 });
 
 export const garmentComponentSchema = z.object({

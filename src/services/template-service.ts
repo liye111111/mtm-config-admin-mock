@@ -21,6 +21,24 @@ async function validateTemplateConfig(config: TemplateConfig) {
     ensureUnique(step.options.map((option) => option.code), `${step.title}选项`);
     const selectedDefaults = step.options.filter((option) => option.enabled && option.defaultSelected);
     if (selectedDefaults.length > 1 && step.type === "options") throw new AppError(`${step.title}只能设置一个默认选项`);
+    const isTextInput = step.type === "options" && step.displayType === "text_input";
+    const isEmbroidery = step.type === "embroidery";
+    if (isTextInput) {
+      if (!step.textInput) throw new AppError(`${step.title}缺少文本输入规则`);
+      if (step.options.length) throw new AppError(`${step.title}是文本输入步骤，不能包含候选选项`);
+      if (step.textInput.minLength > step.textInput.maxLength) throw new AppError(`${step.title}的最小字符数不能大于最大字符数`);
+    } else if (isEmbroidery) {
+      if (!step.textInput) throw new AppError(`${step.title}缺少刺绣文字规则`);
+      if (!step.embroidery) throw new AppError(`${step.title}缺少刺绣位置、字体或颜色字典`);
+      if (step.options.length) throw new AppError(`${step.title}是刺绣步骤，不能包含普通候选选项`);
+      if (step.textInput.minLength > step.textInput.maxLength) throw new AppError(`${step.title}的最小字符数不能大于最大字符数`);
+      for (const [label, choices] of [["位置", step.embroidery.positions], ["字体", step.embroidery.fonts], ["颜色", step.embroidery.colors]] as const) {
+        ensureUnique(choices.map((choice) => choice.code), `${step.title}${label}`);
+      }
+    } else {
+      if (step.textInput) throw new AppError(`${step.title}不是文本输入步骤，不能配置文本输入规则`);
+      if (step.embroidery) throw new AppError(`${step.title}不是刺绣步骤，不能配置刺绣字典`);
+    }
   }
   ensureUnique(config.measurementBlocks.map((block) => block.code), "尺寸块");
   for (const block of config.measurementBlocks) {

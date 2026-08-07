@@ -28,15 +28,59 @@ export async function getStorefrontConfig(shopId: string, productId: string) {
 }
 
 function record(value: unknown): Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
-function validateTemplateSelections(config: TemplateConfig, selections: Record<string, unknown>, summary: string[], validateMeasurements = true) {
+function validateTemplateSelections(config: TemplateConfig, selections: Record<string, unknown>, summary: string[], properties: Record<string, string>, validateMeasurements = true, privatePrefix = "_", stepPropertyPrefix = "_mtm_step_") {
   for (const step of config.steps.filter((item) => item.enabled)) {
-    if (step.type !== "options" || !step.options.length) continue;
-    const selected = String(selections[step.code] ?? "");
-    if (step.required && !selected) throw new AppError(`请选择${step.title}`, 422);
-    if (!selected) continue;
-    const option = step.options.find((item) => item.enabled && item.code === selected);
-    if (!option) throw new AppError(`${step.title}包含无效选项`, 422);
-    summary.push(option.name);
+    if (step.type === "options" && step.options.length) {
+      const selected = String(selections[step.code] ?? "");
+      if (step.required && !selected) throw new AppError(`请选择${step.title}`, 422);
+      if (!selected) continue;
+      const option = step.options.find((item) => item.enabled && item.code === selected);
+      if (!option) throw new AppError(`${step.title}包含无效选项`, 422);
+      properties[`${stepPropertyPrefix}${step.code}`] = JSON.stringify({
+        schemaVersion: 1,
+        stepCode: step.code,
+        stepType: "options",
+        selectedCode: option.code,
+        display: { title: step.title, value: option.name },
+      });
+      summary.push(option.name);
+    }
+    if (step.type === "embroidery") {
+      const enabled = selections.embroidery_enabled;
+      if (typeof enabled !== "boolean") throw new AppError("请选择是否需要刺绣", 422);
+      if (!enabled) {
+        if (["embroidery_position", "embroidery_font", "embroidery_color", "embroidery_text"].some((key) => String(selections[key] ?? "").trim())) throw new AppError("无需刺绣时不能提交刺绣明细", 422);
+        properties[`${privatePrefix}embroidery`] = JSON.stringify({ schemaVersion: 1, stepCode: step.code, enabled: false, display: { service: "无需刺绣" } });
+        summary.push("无需刺绣");
+        continue;
+      }
+      if (!step.embroidery || !step.textInput) throw new AppError("刺绣配置不完整", 500);
+      const selectedChoice = (key: string, label: string, choices: Array<{code: string; name: string}>) => {
+        const code = String(selections[key] ?? "");
+        const choice = choices.find((item) => item.code === code);
+        if (!choice) throw new AppError(`请选择${label}`, 422);
+        return choice.name;
+      };
+      const position = selectedChoice("embroidery_position", "刺绣位置", step.embroidery.positions);
+      const font = selectedChoice("embroidery_font", "刺绣字体", step.embroidery.fonts);
+      const color = selectedChoice("embroidery_color", "刺绣颜色", step.embroidery.colors);
+      const text = typeof selections.embroidery_text === "string" ? selections.embroidery_text.trim() : "";
+      const length = [...text].length;
+      if (length < step.textInput.minLength || length > step.textInput.maxLength) throw new AppError(`刺绣文字必须为 ${step.textInput.minLength}-${step.textInput.maxLength} 个字符`, 422);
+      if (step.textInput.characterPolicy === "letters_only" && !/^[A-Za-z]+$/.test(text)) throw new AppError("刺绣文字仅允许英文字母", 422);
+      if (step.textInput.characterPolicy === "letters_numbers_spaces" && !/^[A-Za-z0-9 ]+$/.test(text)) throw new AppError("刺绣文字仅允许英文、数字和空格", 422);
+      properties[`${privatePrefix}embroidery`] = JSON.stringify({
+        schemaVersion: 1,
+        stepCode: step.code,
+        enabled: true,
+        position: String(selections.embroidery_position),
+        font: String(selections.embroidery_font),
+        color: String(selections.embroidery_color),
+        text,
+        display: { service: "需要刺绣", position, font, color, text },
+      });
+      summary.push(`刺绣：${position} / ${font} / ${color} / ${text}`);
+    }
   }
   if (validateMeasurements) {
     const measurements = record(selections.measurements);
@@ -65,7 +109,8 @@ async function validateAuthoritatively(shopId: string, input: ValidateConfigurat
   const config = templateView(row).config;
   await verifyShopifyVariant(shopId, input.productId, input.variantId);
   const summary: string[] = [];
-  validateTemplateSelections(config, input.selections, summary);
+  const lineItemProperties: Record<string, string> = {};
+  validateTemplateSelections(config, input.selections, summary, lineItemProperties);
   if (config.templateType === "composite") {
     const componentSelections = record(input.selections.components);
     for (const component of config.components.filter((item) => item.customizationEnabled)) {
@@ -76,12 +121,12 @@ async function validateAuthoritatively(shopId: string, input: ValidateConfigurat
       // A composite template collects measurements once at the root level.
       // Child templates contribute customization options only and must not
       // require a second, component-local copy of the same measurements.
-      validateTemplateSelections(templateView(child).config, selected, summary, false);
+      validateTemplateSelections(templateView(child).config, selected, summary, lineItemProperties, false, `_mtm_${component.code}_`, `_mtm_${component.code}_step_`);
     }
   }
-  return { row, summary: summary.join(" / ") || `定制配置 v${row.version}` };
+  return { row, summary: summary.join(" / ") || `定制配置 v${row.version}`, lineItemProperties };
 }
 export async function validateConfiguration(shopId: string, input: ValidateConfigurationInput) { const result = await validateAuthoritatively(shopId, input); return { valid: true, errors: [], configVersion: result.row.version, validatedAt: new Date().toISOString() }; }
-function instanceResponse(row: NonNullable<Awaited<ReturnType<typeof customizations.createCustomizationInstance>>>) { return { customizationId: row.id, status: row.status, configVersion: row.template_version, summary: row.summary, lineItemProperties: { "定制摘要": row.summary, "_mtm_customization_id": row.id, "_mtm_template": `${row.template_code}@${row.template_version}` } }; }
+function instanceResponse(row: NonNullable<Awaited<ReturnType<typeof customizations.createCustomizationInstance>>>, visibleProperties: Record<string, string>) { return { customizationId: row.id, status: row.status, configVersion: row.template_version, lineItemPropertiesVersion: 2, summary: row.summary, lineItemProperties: { "定制摘要": row.summary, ...visibleProperties, "_mtm_customization_id": row.id, "_mtm_template": `${row.template_code}@${row.template_version}` } }; }
 async function hashGuestId(guestId?: string | null) { if (!guestId) return null; const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(guestId))); return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join(""); }
-export async function createCustomization(identity: StorefrontIdentity, input: CreateCustomizationInput, guestId?: string | null) { const existing = await customizations.findByIdempotencyKey(identity.shopId, input.idempotencyKey); if (existing) return instanceResponse(existing); const { row, summary } = await validateAuthoritatively(identity.shopId, input); try { const created = await customizations.createCustomizationInstance({ shopId: identity.shopId, customerId: identity.customerId, guestIdHash: await hashGuestId(guestId), input, templateId: row.id, templateCode: row.code, templateVersion: row.version, schemaVersion: row.schema_version, summary }); if (!created) throw new AppError("定制实例创建失败", 500); return instanceResponse(created); } catch (error) { const concurrent = await customizations.findByIdempotencyKey(identity.shopId, input.idempotencyKey); if (concurrent) return instanceResponse(concurrent); throw error; } }
+export async function createCustomization(identity: StorefrontIdentity, input: CreateCustomizationInput, guestId?: string | null) { const { row, summary, lineItemProperties } = await validateAuthoritatively(identity.shopId, input); const existing = await customizations.findByIdempotencyKey(identity.shopId, input.idempotencyKey); if (existing) return instanceResponse(existing, lineItemProperties); try { const created = await customizations.createCustomizationInstance({ shopId: identity.shopId, customerId: identity.customerId, guestIdHash: await hashGuestId(guestId), input, templateId: row.id, templateCode: row.code, templateVersion: row.version, schemaVersion: row.schema_version, summary }); if (!created) throw new AppError("定制实例创建失败", 500); return instanceResponse(created, lineItemProperties); } catch (error) { const concurrent = await customizations.findByIdempotencyKey(identity.shopId, input.idempotencyKey); if (concurrent) return instanceResponse(concurrent, lineItemProperties); throw error; } }
