@@ -58,6 +58,8 @@ export type MeasurementProfileRow = {
   id: string;
   shop_id: string;
   customer_id: string | null;
+  customer_email: string | null;
+  customer_name: string | null;
   guest_id_hash: string | null;
   unit: "CM" | "IN";
   schema_version: number;

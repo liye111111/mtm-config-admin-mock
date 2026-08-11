@@ -86,7 +86,7 @@ export async function claimGuestProfile(identity: StorefrontIdentity, input: Cla
 export async function getCustomerMeasurementProfileForAdmin(id: string) {
   const row = await profiles.findMeasurementProfile(id);
   if (!row) throw new NotFoundError("量体资料不存在");
-  return { id: row.id, shopId: row.shop_id, customerId: row.customer_id, ...toView(row, row.customer_id ? "customer" : "guest").profile };
+  return { id: row.id, shopId: row.shop_id, customerId: row.customer_id, customerEmail: row.customer_email, customerName: row.customer_name, ...toView(row, row.customer_id ? "customer" : "guest").profile };
 }
 
 export async function createCustomerMeasurementProfileForAdmin(input: AdminCustomerMeasurementProfileInput) {
@@ -94,7 +94,7 @@ export async function createCustomerMeasurementProfileForAdmin(input: AdminCusto
   if (await profiles.findCustomerProfile(input.shopId, input.customerId)) throw new AppError("该客户已有量体资料，请使用编辑功能", 409);
   const row = await profiles.upsertCustomerProfile({ shopId: input.shopId, customerId: input.customerId, unit: input.unit, schemaVersion: input.schemaVersion, measurementsJson: JSON.stringify(input.measurements) });
   if (!row) throw new AppError("客户量体资料创建失败", 500);
-  return { id: row.id, shopId: row.shop_id, customerId: row.customer_id, ...toView(row, "customer").profile };
+  return { id: row.id, shopId: row.shop_id, customerId: row.customer_id, customerEmail: row.customer_email, customerName: row.customer_name, ...toView(row, "customer").profile };
 }
 
 export async function updateCustomerMeasurementProfileForAdmin(id: string, input: AdminCustomerMeasurementProfileInput) {
@@ -103,7 +103,7 @@ export async function updateCustomerMeasurementProfileForAdmin(id: string, input
   if (existing.shop_id !== input.shopId || (existing.customer_id ?? "") !== input.customerId) throw new AppError("不允许变更量体资料的客户归属", 409);
   const row = await profiles.updateMeasurementProfileById(id, { unit: input.unit, schemaVersion: input.schemaVersion, measurementsJson: JSON.stringify(input.measurements) });
   if (!row) throw new AppError("客户量体资料更新失败", 500);
-  return { id: row.id, shopId: row.shop_id, customerId: row.customer_id, ...toView(row, row.customer_id ? "customer" : "guest").profile };
+  return { id: row.id, shopId: row.shop_id, customerId: row.customer_id, customerEmail: row.customer_email, customerName: row.customer_name, ...toView(row, row.customer_id ? "customer" : "guest").profile };
 }
 
 export async function deleteCustomerMeasurementProfileForAdmin(id: string) {

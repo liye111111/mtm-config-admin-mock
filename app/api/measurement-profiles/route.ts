@@ -15,6 +15,8 @@ export async function GET() {
       shopId: row.shop_id,
       ownerType: row.customer_id ? "customer" as const : "guest" as const,
       customerId: row.customer_id,
+      customerEmail: row.customer_email,
+      customerName: row.customer_name,
       unit: row.unit,
       schemaVersion: row.schema_version,
       fieldCount,

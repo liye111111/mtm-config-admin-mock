@@ -5,7 +5,9 @@ import * as snapshots from "@/src/repositories/order-webhook-repository";
 
 type OrderProperty = { name?: unknown; key?: unknown; value?: unknown };
 type OrderLineItem = { id?: unknown; properties?: unknown };
-type OrderPayload = { id?: unknown; admin_graphql_api_id?: unknown; customer?: { id?: unknown } | null; line_items?: unknown };
+type OrderPayload = { id?: unknown; admin_graphql_api_id?: unknown; email?: unknown; contact_email?: unknown; customer?: { id?: unknown; email?: unknown; first_name?: unknown; last_name?: unknown } | null; line_items?: unknown };
+
+function optionalText(value: unknown) { return typeof value === "string" && value.trim() ? value.trim() : null; }
 
 function customizationId(item: OrderLineItem) {
   if (!Array.isArray(item.properties)) return null;
@@ -23,6 +25,8 @@ export async function processOrderCreate(args: { shopId: string; webhookId: stri
   await snapshots.createSnapshot({ ...args, orderId, payloadJson: args.rawBody });
   try {
     const customerId = order.customer?.id == null ? null : String(order.customer.id);
+    const customerEmail = optionalText(order.customer?.email) ?? optionalText(order.email) ?? optionalText(order.contact_email);
+    const customerName = [optionalText(order.customer?.first_name), optionalText(order.customer?.last_name)].filter(Boolean).join(" ") || null;
     const lineItems = Array.isArray(order.line_items) ? order.line_items as OrderLineItem[] : [];
     let reconciled = 0;
     for (const item of lineItems) {
@@ -33,7 +37,7 @@ export async function processOrderCreate(args: { shopId: string; webhookId: stri
       const measurements = JSON.parse(instance.measurement_snapshot_json) as Record<string, unknown>;
       if (!measurements || typeof measurements !== "object" || !Object.keys(measurements).length) continue;
       const measurementsJson = JSON.stringify(measurements);
-      if (customerId) await profiles.upsertCustomerProfile({ shopId: args.shopId, customerId, unit: "CM", schemaVersion: instance.schema_version, measurementsJson });
+      if (customerId) await profiles.upsertCustomerProfile({ shopId: args.shopId, customerId, customerEmail, customerName, unit: "CM", schemaVersion: instance.schema_version, measurementsJson });
       else if (instance.cart_token_hash) await profiles.upsertGuestProfile({ shopId: args.shopId, guestIdHash: instance.cart_token_hash, unit: "CM", schemaVersion: instance.schema_version, measurementsJson, expiresAt: new Date(Date.now() + 180 * 86400000).toISOString() });
       else continue;
       await customizations.markOrdered(instance.id);

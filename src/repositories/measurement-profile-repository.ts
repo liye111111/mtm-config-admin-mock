@@ -28,13 +28,13 @@ export async function updateMeasurementProfileById(id: string, args: { unit: "CM
   return findMeasurementProfile(id);
 }
 
-export async function upsertCustomerProfile(args: { shopId: string; customerId: string; unit: "CM" | "IN"; schemaVersion: number; measurementsJson: string }) {
+export async function upsertCustomerProfile(args: { shopId: string; customerId: string; customerEmail?: string | null; customerName?: string | null; unit: "CM" | "IN"; schemaVersion: number; measurementsJson: string }) {
   await ensureDatabase();
   const now = new Date().toISOString();
-  await database().prepare(`INSERT INTO measurement_profiles (id,shop_id,customer_id,guest_id_hash,unit,schema_version,measurements_json,expires_at,created_at,updated_at)
-    VALUES (?,?,?,NULL,?,?,?,NULL,?,?)
-    ON CONFLICT(shop_id,customer_id) DO UPDATE SET unit=excluded.unit,schema_version=excluded.schema_version,measurements_json=excluded.measurements_json,expires_at=NULL,updated_at=excluded.updated_at`)
-    .bind(`mp_${crypto.randomUUID().replace(/-/g, "")}`, args.shopId, args.customerId, args.unit, args.schemaVersion, args.measurementsJson, now, now).run();
+  await database().prepare(`INSERT INTO measurement_profiles (id,shop_id,customer_id,customer_email,customer_name,guest_id_hash,unit,schema_version,measurements_json,expires_at,created_at,updated_at)
+    VALUES (?,?,?,?,?,NULL,?,?,?,NULL,?,?)
+    ON CONFLICT(shop_id,customer_id) DO UPDATE SET customer_email=COALESCE(excluded.customer_email,measurement_profiles.customer_email),customer_name=COALESCE(excluded.customer_name,measurement_profiles.customer_name),unit=excluded.unit,schema_version=excluded.schema_version,measurements_json=excluded.measurements_json,expires_at=NULL,updated_at=excluded.updated_at`)
+    .bind(`mp_${crypto.randomUUID().replace(/-/g, "")}`, args.shopId, args.customerId, args.customerEmail ?? null, args.customerName ?? null, args.unit, args.schemaVersion, args.measurementsJson, now, now).run();
   return findCustomerProfile(args.shopId, args.customerId);
 }
 

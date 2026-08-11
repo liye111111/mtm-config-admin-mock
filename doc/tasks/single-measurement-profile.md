@@ -66,5 +66,7 @@ npm test
 - 先部署 Worker API，确认路由和表已就绪，再发布主题。
 
 加购成功后主题自动保存当前量体资料。订单创建后，`orders/create` Webhook 会完整保存原始订单快照，并通过行项目 `_mtm_customization_id` 将定制实例中的量体快照同步到登录客户资料；游客订单则通过定制实例中保存的 `guestId` 哈希更新匿名资料。Webhook 使用 Webhook ID 幂等处理。
+
+登录客户以稳定的 Shopify Customer ID 作为唯一标识。`customer_email` 和 `customer_name` 仅作为可空展示快照，由订单 Webhook 更新；邮箱变更不会创建第二套量体资料，缺失或被 Shopify 脱敏的字段也不会覆盖已有值。
 - 回滚主题时可停止新读写，`measurement_profiles` 表可保留，不影响旧版定制器。
 - 如必须删表，应在确认无需恢复资料后使用单独的破坏性迁移，不在应用启动过程执行。

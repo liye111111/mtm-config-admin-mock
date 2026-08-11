@@ -17,7 +17,7 @@ export type CreateCustomizationInput = z.infer<typeof createCustomizationSchema>
 export function parseCreateCustomization(value: unknown): CreateCustomizationInput { return parseWithSchema(createCustomizationSchema, value); }
 
 const guestIdSchema = z.string().uuid().optional();
-const measurementsSchema = z.record(z.string().trim().min(1).max(100), z.coerce.number().finite()).refine((value) => Object.keys(value).length <= 100, "量体字段过多");
+export const measurementsSchema = z.record(z.string().trim().min(1).max(100), z.coerce.number().finite()).refine((value) => Object.keys(value).length <= 100, "量体字段过多");
 export const measurementProfileQuerySchema = z.object({ productId: requiredId("productId 必填"), guestId: guestIdSchema });
 export const saveMeasurementProfileSchema = measurementProfileQuerySchema.extend({ unit: z.enum(["CM", "IN"]), schemaVersion: z.coerce.number().int().positive().default(1), measurements: measurementsSchema });
 export const claimMeasurementProfileSchema = z.object({ guestId: z.string().uuid(), strategy: z.enum(["use_guest", "keep_customer"]) });
@@ -27,6 +27,14 @@ export type ClaimMeasurementProfileInput = z.infer<typeof claimMeasurementProfil
 export function parseMeasurementProfileQuery(value: unknown): MeasurementProfileQuery { return parseWithSchema(measurementProfileQuerySchema, value); }
 export function parseSaveMeasurementProfile(value: unknown): SaveMeasurementProfileInput { return parseWithSchema(saveMeasurementProfileSchema, value); }
 export function parseClaimMeasurementProfile(value: unknown): ClaimMeasurementProfileInput { return parseWithSchema(claimMeasurementProfileSchema, value); }
+
+export const mockSizeRecommendationSchema = z.object({
+  productId: requiredId("productId 必填"),
+  availableSizes: z.array(z.string().trim().min(1).max(100)).min(1, "没有可推荐的尺码").max(100).transform((values) => [...new Set(values)]),
+  measurements: measurementsSchema.refine((value) => Object.keys(value).length > 0, "量体数据不能为空"),
+});
+export type MockSizeRecommendationInput = z.infer<typeof mockSizeRecommendationSchema>;
+export function parseMockSizeRecommendation(value: unknown): MockSizeRecommendationInput { return parseWithSchema(mockSizeRecommendationSchema, value); }
 
 export const adminCustomerMeasurementProfileSchema = z.object({
   shopId: z.string().trim().regex(/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/, "shopId 格式无效"),

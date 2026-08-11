@@ -62,6 +62,8 @@ export type MeasurementProfileAdminView = {
   shopId: string;
   ownerType: "customer" | "guest";
   customerId: string | null;
+  customerEmail: string | null;
+  customerName: string | null;
   unit: "CM" | "IN";
   schemaVersion: number;
   fieldCount: number;
@@ -74,6 +76,8 @@ export type CustomerMeasurementProfileDetail = {
   id: string;
   shopId: string;
   customerId: string | null;
+  customerEmail: string | null;
+  customerName: string | null;
   unit: "CM" | "IN";
   schemaVersion: number;
   measurements: Record<string, number>;

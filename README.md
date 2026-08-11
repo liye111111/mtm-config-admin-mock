@@ -69,6 +69,7 @@ npm run build
 - `POST /api/templates/:id/publish`
 - `GET /api/storefront/config/:productId`
 - `POST /api/storefront/validate`
+- `POST /api/storefront/size-recommendation`（Mock：从可售尺码中随机推荐）
 - `GET|PUT|DELETE /api/storefront/measurement-profile`
 - `GET /api/storefront/measurement-profile/claim-status`
 - `POST /api/storefront/measurement-profile/claim`
@@ -94,3 +95,5 @@ POC 商品 ID 为 `10296845205799`。
 生产部署前应将 Storefront CORS 从 `*` 收紧到 Shopify 正式域名，并为管理写接口增加鉴权。
 
 订单量体资料对账使用 `POST /api/webhooks/orders-create`。在 Shopify 应用中订阅 `orders/create`，将回调地址配置为该路径；服务端使用 `SHOPIFY_CLIENT_SECRET` 校验原始请求体 HMAC，并按 `X-Shopify-Webhook-Id` 幂等保存完整订单 Webhook 快照。订单快照可能包含个人信息，应设置访问控制、保留期限和客户数据删除流程。
+
+登录客户量体资料继续以 Shopify Customer ID 作为唯一归属键，并额外保存订单 Webhook 中的客户 Email 和姓名快照用于后台列表展示。应用需具有 `read_customers`，并在 Shopify Developer Dashboard 获得所需的受保护客户数据访问权限；Webhook 未返回联系方式时，不会清空已有快照。

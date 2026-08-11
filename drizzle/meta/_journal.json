@@ -36,6 +36,13 @@
       "when": 1785816000000,
       "tag": "0005_order_webhook_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1786420800000,
+      "tag": "0006_customer_profile_contact",
+      "breakpoints": true
     }
   ]
 }
