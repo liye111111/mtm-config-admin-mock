@@ -260,9 +260,7 @@ function AccessDeniedPage() {
     <section className="access-denied-card" aria-labelledby="access-denied-title">
       <div className="access-denied-code">403</div>
       <div className="access-denied-icon" aria-hidden="true">×</div>
-      <h1 id="access-denied-title">无权访问管理后台</h1>
-      <p>当前请求没有有效的 Shopify 管理会话。请从 Shopify Admin 的应用菜单重新打开本应用。</p>
-      <button className="primary" onClick={() => window.location.reload()}>重新验证</button>
+      <h1 id="access-denied-title">无权访问管理后台</h1>      
     </section>
   </main>;
 }
