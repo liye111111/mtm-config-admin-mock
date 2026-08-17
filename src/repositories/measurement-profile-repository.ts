@@ -11,9 +11,25 @@ export async function findGuestProfile(shopId: string, guestIdHash: string) {
   return database().prepare("SELECT * FROM measurement_profiles WHERE shop_id=? AND guest_id_hash=? AND expires_at>?").bind(shopId, guestIdHash, new Date().toISOString()).first<MeasurementProfileRow>();
 }
 
-export async function listMeasurementProfiles(shopId: string, limit = 200) {
+export type MeasurementProfileFilter = "all" | "customer" | "guest" | "activeGuest";
+
+export async function listMeasurementProfiles(shopId: string, options: { filter: MeasurementProfileFilter; page: number; pageSize: number }) {
   await ensureDatabase();
-  return (await database().prepare("SELECT * FROM measurement_profiles WHERE shop_id=? ORDER BY updated_at DESC LIMIT ?").bind(shopId, limit).all<MeasurementProfileRow>()).results;
+  const now = new Date().toISOString();
+  const stats = await database().prepare(`SELECT COUNT(*) total,
+    SUM(CASE WHEN customer_id IS NOT NULL THEN 1 ELSE 0 END) customer_count,
+    SUM(CASE WHEN customer_id IS NULL THEN 1 ELSE 0 END) guest_count,
+    SUM(CASE WHEN customer_id IS NULL AND expires_at>? THEN 1 ELSE 0 END) active_guest_count
+    FROM measurement_profiles WHERE shop_id=?`).bind(now, shopId).first<{ total: number; customer_count: number | null; guest_count: number | null; active_guest_count: number | null }>();
+  const counts = { total: stats?.total ?? 0, customer: stats?.customer_count ?? 0, guest: stats?.guest_count ?? 0, activeGuest: stats?.active_guest_count ?? 0 };
+  const total = options.filter === "all" ? counts.total : counts[options.filter];
+  const totalPages = Math.max(1, Math.ceil(total / options.pageSize));
+  const page = Math.min(options.page, totalPages);
+  const filterSql = options.filter === "customer" ? " AND customer_id IS NOT NULL" : options.filter === "guest" ? " AND customer_id IS NULL" : options.filter === "activeGuest" ? " AND customer_id IS NULL AND expires_at>?" : "";
+  const statement = database().prepare(`SELECT * FROM measurement_profiles WHERE shop_id=?${filterSql} ORDER BY updated_at DESC LIMIT ? OFFSET ?`);
+  const query = options.filter === "activeGuest" ? statement.bind(shopId, now, options.pageSize, (page - 1) * options.pageSize) : statement.bind(shopId, options.pageSize, (page - 1) * options.pageSize);
+  const items = (await query.all<MeasurementProfileRow>()).results;
+  return { items, total, page, pageSize: options.pageSize, totalPages, stats: counts };
 }
 
 export async function findMeasurementProfile(id: string, shopId: string) {

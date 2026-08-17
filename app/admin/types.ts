@@ -72,6 +72,16 @@ export type MeasurementProfileAdminView = {
   updatedAt: string;
 };
 
+export type MeasurementProfileFilter = "all" | "customer" | "guest" | "activeGuest";
+export type MeasurementProfilePage = {
+  items: MeasurementProfileAdminView[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  stats: { total: number; customer: number; guest: number; activeGuest: number };
+};
+
 export type CustomerMeasurementProfileDetail = {
   id: string;
   shopId: string;

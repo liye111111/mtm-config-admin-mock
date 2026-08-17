@@ -76,6 +76,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .customer-filter-result{display:flex;align-items:center;gap:10px;min-height:36px;margin:2px 0 8px;color:var(--muted);font-size:12px}
 .customer-filter-result strong{color:var(--ink);font-size:13px}
 .customer-filter-result .link{margin-left:auto}
+.pagination{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:12px 16px;border-top:1px solid var(--line-soft);color:var(--muted);font-size:12px}
+.pagination .secondary{min-height:32px;padding:5px 11px}
 .work{display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;align-items:start}
 .panel{overflow:hidden}
 .panel-title{padding:14px 16px;border-bottom:1px solid var(--line-soft);font-weight:650}
