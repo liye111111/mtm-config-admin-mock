@@ -21,6 +21,7 @@ Cloudflare Worker 的管理页面和 API 具有公网入口。商品绑定接口
 - 量体资料请求中的 `shopId` 与 Token 店铺不一致时返回 HTTP 403。
 - 查询或操作其他店铺的量体资料时按资源不存在处理，返回 HTTP 404。
 - 本地开发仍可从 localhost 使用现有的 `X-MTM-Mock-Shopify: 1` 模式。
+- 管理页面收到 HTTP 401/403，或无法取得 Shopify Session Token 时，直接显示完整的 403 无权访问页面，不再渲染后台空壳和局部错误提示。
 
 ## 数据库与配置
 

@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DEFAULT_EMBROIDERY_CONFIG, garmentCategoryLabels, type CustomizationOption, type CustomizationStep, type GarmentCategory, type GarmentComponentDefinition, type MeasurementBlock, type MeasurementFieldDefinition, type TemplateType, type TextInputConfig } from "@/src/domain";
-import { apiJson, jsonRequest } from "./admin/api";
+import { apiJson, isAuthorizationError, jsonRequest } from "./admin/api";
 import { AdminShell, type AdminView } from "./admin/app-shell";
 import type { CustomerMeasurementProfileDetail, MeasurementProfileAdminView, ProductBindingView, ShopifyProductSelection, TemplateCategoryView, TemplateTab, TemplateVersionView, TemplateView } from "./admin/types";
 import { isShopifyEmbedded, selectShopifyProducts } from "./admin/shopify";
@@ -26,6 +26,8 @@ export function ConfigAdmin() {
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<TemplateTab>("base");
   const [busy, setBusy] = useState(false);
+  const [initializing, setInitializing] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [editingBinding, setEditingBinding] = useState<ProductBindingView | null>(null);
   const [bindingProducts, setBindingProducts] = useState<ShopifyProductSelection[]>([]);
@@ -52,9 +54,14 @@ export function ConfigAdmin() {
   async function loadVersions(templateId = selected) { if (!templateId) return setVersions([]); const payload = await apiJson<TemplateVersionView[]>(`/api/templates/${templateId}/versions`); setVersions(payload.data ?? []); }
   async function loadBindingVersions(templateId: string) { if (!templateId) return setBindingVersions([]); const payload = await apiJson<TemplateVersionView[]>(`/api/templates/${templateId}/versions`); setBindingVersions(payload.data ?? []); }
 
-  // Initial API hydration intentionally updates local UI state.
-  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
-  useEffect(() => { void Promise.all([loadTemplates(), loadBindings(), loadCategories()]).catch((error: Error) => setNotice({ type: "error", text: error.message })); }, []);
+  useEffect(() => {
+    // Initial API hydration intentionally updates local UI state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void Promise.all([loadTemplates(), loadBindings(), loadCategories()])
+      .catch((error: unknown) => handleError(error))
+      .finally(() => setInitializing(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!draft || (tab !== "components" && tab !== "steps")) return;
@@ -80,10 +87,19 @@ export function ConfigAdmin() {
     return () => cleanups.forEach((cleanup) => cleanup());
   }, [draft, tab]);
 
+  function handleError(error: unknown) {
+    if (isAuthorizationError(error)) {
+      setAccessDenied(true);
+      setNotice(null);
+      return;
+    }
+    setNotice({ type: "error", text: error instanceof Error ? error.message : "操作失败" });
+  }
+
   async function run(work: () => Promise<void>, success: string) {
     setBusy(true); setNotice(null);
     try { await work(); setNotice({ type: "success", text: success }); }
-    catch (error) { setNotice({ type: "error", text: error instanceof Error ? error.message : "操作失败" }); }
+    catch (error) { handleError(error); }
     finally { setBusy(false); }
   }
 
@@ -159,8 +175,8 @@ export function ConfigAdmin() {
   function updateMeasurementField(blockIndex: number, fieldIndex: number, key: keyof MeasurementFieldDefinition, value: string | boolean | number) { updateDraft((next) => { (next.config.measurementBlocks[blockIndex].fields[fieldIndex] as unknown as Record<string, unknown>)[key] = value; }); }
   function removeMeasurementField(blockIndex: number, fieldIndex: number) { updateDraft((next) => { const fields = next.config.measurementBlocks[blockIndex].fields; fields.splice(fieldIndex, 1); fields.forEach((item, order) => { item.sortOrder = order; }); }); }
 
-  function newBinding() { const templateId = items.find((item) => item.status === "published")?.id ?? ""; setBindingProducts([]); setEditingBinding({ id: "", shopId: "", shopifyProductGid: "", shopifyProductId: "", productTitle: "", productHandle: "", productStatus: "ACTIVE", productKind: "single", variantCount: 0, templateId, publishedVersion: null, enabled: true, syncStatus: "stale" }); void loadBindingVersions(templateId); }
-  function editBinding(binding: ProductBindingView) { const product = { gid: binding.shopifyProductGid, title: binding.productTitle, handle: binding.productHandle, imageUrl: binding.productImageUrl, imageAlt: binding.productImageAlt, status: binding.productStatus, variantCount: binding.variantCount, onlineStoreUrl: binding.onlineStoreUrl, updatedAt: binding.shopifyUpdatedAt }; setBindingProducts([product]); setEditingBinding({ ...clone(binding), mockProduct: product }); void loadBindingVersions(binding.templateId); }
+  function newBinding() { const templateId = items.find((item) => item.status === "published")?.id ?? ""; setBindingProducts([]); setEditingBinding({ id: "", shopId: "", shopifyProductGid: "", shopifyProductId: "", productTitle: "", productHandle: "", productStatus: "ACTIVE", productKind: "single", variantCount: 0, templateId, publishedVersion: null, enabled: true, syncStatus: "stale" }); void loadBindingVersions(templateId).catch(handleError); }
+  function editBinding(binding: ProductBindingView) { const product = { gid: binding.shopifyProductGid, title: binding.productTitle, handle: binding.productHandle, imageUrl: binding.productImageUrl, imageAlt: binding.productImageAlt, status: binding.productStatus, variantCount: binding.variantCount, onlineStoreUrl: binding.onlineStoreUrl, updatedAt: binding.shopifyUpdatedAt }; setBindingProducts([product]); setEditingBinding({ ...clone(binding), mockProduct: product }); void loadBindingVersions(binding.templateId).catch(handleError); }
   async function pickProduct() { if (!editingBinding) return; const products = await selectShopifyProducts(!editingBinding.id); if (!products) return; setBindingProducts(products); }
   async function saveBinding() {
     if (!editingBinding || !bindingProducts.length) return;
@@ -170,7 +186,10 @@ export function ConfigAdmin() {
       for (const product of productsToSave) {
         const input = { ...editingBinding, shopifyProductGid: product.gid, shopifyProductId: product.gid.split("/").at(-1) ?? "", productTitle: product.title, productHandle: product.handle, productImageUrl: product.imageUrl, productImageAlt: product.imageAlt, productStatus: product.status, variantCount: product.variantCount, onlineStoreUrl: product.onlineStoreUrl, mockProduct: product };
         try { await apiJson(editingBinding.id ? `/api/products/${editingBinding.id}` : "/api/products", jsonRequest(editingBinding.id ? "PUT" : "POST", input)); }
-        catch (error) { failures.push({ product, message: error instanceof Error ? error.message : "请求失败" }); }
+        catch (error) {
+          if (isAuthorizationError(error)) throw error;
+          failures.push({ product, message: error instanceof Error ? error.message : "请求失败" });
+        }
       }
       await loadBindings();
       if (failures.length) {
@@ -214,8 +233,11 @@ export function ConfigAdmin() {
   async function saveCategory() { if(!categoryDraft)return; await run(async()=>{ await apiJson(categoryDraft.id?`/api/template-categories/${categoryDraft.id}`:"/api/template-categories",jsonRequest(categoryDraft.id?"PUT":"POST",categoryDraft)); setCategoryDraft(null); await Promise.all([loadCategories(),loadTemplates()]); },categoryDraft.id?"品类已更新":"品类已创建"); }
   async function removeCategory(category:TemplateCategoryView) { if(!confirm(`确认删除品类“${category.name}”？`))return; await run(async()=>{ await apiJson(`/api/template-categories/${category.id}`,{method:"DELETE"}); await loadCategories(); },"品类已删除"); }
 
-  function navigate(next: AdminView) { setView(next); setNotice(null); if (next === "categories") void loadCategories(); if (next === "products") void loadBindings(); if (next === "customers") void loadMeasurementProfiles().catch((error: Error) => setNotice({ type: "error", text: error.message })); }
-  function openTab(next: TemplateTab) { setTab(next); if (next === "versions") void loadVersions(); }
+  function navigate(next: AdminView) { setView(next); setNotice(null); if (next === "categories") void loadCategories().catch(handleError); if (next === "products") void loadBindings().catch(handleError); if (next === "customers") void loadMeasurementProfiles().catch(handleError); }
+  function openTab(next: TemplateTab) { setTab(next); if (next === "versions") void loadVersions().catch(handleError); }
+
+  if (accessDenied) return <AccessDeniedPage />;
+  if (initializing) return <div className="admin-loading" role="status">正在验证管理权限…</div>;
 
   return <AdminShell view={view} onNavigate={navigate}>
     {notice && <div className={`notice ${notice.type}`}>{notice.text}</div>}
@@ -228,9 +250,21 @@ export function ConfigAdmin() {
       onAddBlock={addMeasurementBlock} onUpdateBlock={updateMeasurementBlock} onRemoveBlock={removeMeasurementBlock} onAddField={addMeasurementField} onUpdateField={updateMeasurementField} onRemoveField={removeMeasurementField}
     />}
     {view === "categories" && <TemplateCategories categories={categories} draft={categoryDraft} onDraft={setCategoryDraft} onSave={()=>void saveCategory()} onDelete={(category)=>void removeCategory(category)}/>}
-    {view === "products" && <ProductBindingsNew items={items} bindings={bindings} editing={editingBinding} selectedProducts={bindingProducts} versions={bindingVersions} embedded={isShopifyEmbedded()} onPick={pickProduct} onRemoveSelected={(gid) => setBindingProducts((current) => current.filter((product) => product.gid !== gid))} onNew={newBinding} onEdit={editBinding} onRemove={removeBinding} onSync={syncBinding} onPreview={previewBinding} onChange={(binding) => setEditingBinding(binding)} onTemplateChange={(templateId) => { if (!editingBinding) return; setEditingBinding({ ...editingBinding, templateId, publishedVersion: null }); void loadBindingVersions(templateId); }} onCancel={() => { setEditingBinding(null); setBindingProducts([]); }} onSave={saveBinding} />}
-    {view === "customers" && <CustomerProfiles profiles={measurementProfiles} bindings={bindings} templates={items} draft={customerProfileDraft} onDraft={setCustomerProfileDraft} onNew={newCustomerProfile} onEdit={(profile) => void editCustomerProfile(profile)} onDelete={(profile) => void removeCustomerProfile(profile)} onSave={() => void saveCustomerProfile()} onCancel={() => setCustomerProfileDraft(null)} onRefresh={() => void loadMeasurementProfiles().catch((error: Error) => setNotice({ type: "error", text: error.message }))} />}
+    {view === "products" && <ProductBindingsNew items={items} bindings={bindings} editing={editingBinding} selectedProducts={bindingProducts} versions={bindingVersions} embedded={isShopifyEmbedded()} onPick={pickProduct} onRemoveSelected={(gid) => setBindingProducts((current) => current.filter((product) => product.gid !== gid))} onNew={newBinding} onEdit={editBinding} onRemove={removeBinding} onSync={syncBinding} onPreview={previewBinding} onChange={(binding) => setEditingBinding(binding)} onTemplateChange={(templateId) => { if (!editingBinding) return; setEditingBinding({ ...editingBinding, templateId, publishedVersion: null }); void loadBindingVersions(templateId).catch(handleError); }} onCancel={() => { setEditingBinding(null); setBindingProducts([]); }} onSave={saveBinding} />}
+    {view === "customers" && <CustomerProfiles profiles={measurementProfiles} bindings={bindings} templates={items} draft={customerProfileDraft} onDraft={setCustomerProfileDraft} onNew={newCustomerProfile} onEdit={(profile) => void editCustomerProfile(profile)} onDelete={(profile) => void removeCustomerProfile(profile)} onSave={() => void saveCustomerProfile()} onCancel={() => setCustomerProfileDraft(null)} onRefresh={() => void loadMeasurementProfiles().catch(handleError)} />}
   </AdminShell>;
+}
+
+function AccessDeniedPage() {
+  return <main className="access-denied-page">
+    <section className="access-denied-card" aria-labelledby="access-denied-title">
+      <div className="access-denied-code">403</div>
+      <div className="access-denied-icon" aria-hidden="true">×</div>
+      <h1 id="access-denied-title">无权访问管理后台</h1>
+      <p>当前请求没有有效的 Shopify 管理会话。请从 Shopify Admin 的应用菜单重新打开本应用。</p>
+      <button className="primary" onClick={() => window.location.reload()}>重新验证</button>
+    </section>
+  </main>;
 }
 
 type CustomerProfileDraft = { id: string; shopId: string; customerId: string; unit: "CM" | "IN"; schemaVersion: number; measurements: Record<string, number | string> };
