@@ -27,7 +27,7 @@
 
 1. 搜索当前店铺的 Shopify 商品；
 2. 查看商品主图、名称和基本状态；
-3. 选择一个普通单品或普通套装商品；
+3. 新建绑定时可一次选择多个普通单品或普通套装商品；
 4. 为商品绑定一个已发布的定制模板；
 5. 指定模板发布版本或跟随最新发布版本；
 6. 启用或停用该商品的定制能力；
@@ -79,7 +79,7 @@ React 页面通过 App Bridge 调用：
 ```ts
 const selected = await shopify.resourcePicker({
   type: "product",
-  multiple: false,
+  multiple: true,
   filter: {
     variants: false
   }
@@ -87,6 +87,8 @@ const selected = await shopify.resourcePicker({
 ```
 
 Resource Picker 负责 Shopify 商品搜索、缩略图、标题展示和选择交互。
+
+新建绑定使用多选，所选商品共用商品类型、定制模板、发布版本和启停状态。编辑已有绑定时仍使用单选，避免一次编辑改变多条已有记录。批量保存逐个调用现有绑定接口，部分失败时保留失败商品供重试，并在页面汇总成功数和失败原因。
 
 ### 5.3 权限
 

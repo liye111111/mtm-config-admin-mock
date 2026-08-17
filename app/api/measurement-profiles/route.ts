@@ -1,10 +1,10 @@
-import { route } from "@/src/middleware/http";
+import { adminRoute } from "@/src/middleware/http";
 import { listMeasurementProfiles } from "@/src/repositories/measurement-profile-repository";
 import { parseAdminCustomerMeasurementProfile } from "@/src/schemas/storefront";
 import { createCustomerMeasurementProfileForAdmin } from "@/src/services/measurement-profile-service";
 
-export async function GET() {
-  return route(async () => (await listMeasurementProfiles()).map((row) => {
+export async function GET(request: Request) {
+  return adminRoute(request, async (shopId) => (await listMeasurementProfiles(shopId)).map((row) => {
     let fieldCount = 0;
     try {
       const measurements = JSON.parse(row.measurements_json) as unknown;
@@ -28,5 +28,5 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  return route(async () => createCustomerMeasurementProfileForAdmin(parseAdminCustomerMeasurementProfile(await request.json())), { successStatus: 201 });
+  return adminRoute(request, async (shopId) => createCustomerMeasurementProfileForAdmin(shopId, parseAdminCustomerMeasurementProfile(await request.json())), { successStatus: 201 });
 }

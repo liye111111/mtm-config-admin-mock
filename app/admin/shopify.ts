@@ -7,10 +7,17 @@ const mocks: ShopifyProductSelection[] = [
 
 export function isShopifyEmbedded() { return typeof window !== "undefined" && Boolean(window.shopify?.resourcePicker); }
 
-export async function selectShopifyProduct(): Promise<ShopifyProductSelection | undefined> {
-  if (!isShopifyEmbedded()) return mocks[0];
-  const selected = await window.shopify?.resourcePicker({ type: "product", multiple: false, filter: { variants: false, status: "active" } });
-  const product = selected?.[0]; if (!product) return undefined;
-  return { gid: product.id, title: product.title, handle: product.handle ?? "", imageUrl: product.images?.[0]?.originalSrc, imageAlt: product.images?.[0]?.altText,
-    status: product.status === "ARCHIVED" || product.status === "DRAFT" ? product.status : "ACTIVE", variantCount: product.variants?.length ?? 0 };
+export async function selectShopifyProducts(multiple: boolean): Promise<ShopifyProductSelection[] | undefined> {
+  if (!isShopifyEmbedded()) return multiple ? mocks : [mocks[0]];
+  const selected = await window.shopify?.resourcePicker({ type: "product", multiple, filter: { variants: false, status: "active" } });
+  if (!selected) return undefined;
+  return selected.map((product) => ({
+    gid: product.id,
+    title: product.title,
+    handle: product.handle ?? "",
+    imageUrl: product.images?.[0]?.originalSrc,
+    imageAlt: product.images?.[0]?.altText,
+    status: product.status === "ARCHIVED" || product.status === "DRAFT" ? product.status : "ACTIVE",
+    variantCount: product.variants?.length ?? 0,
+  }));
 }

@@ -74,6 +74,8 @@ npm run build
 - `GET /api/storefront/measurement-profile/claim-status`
 - `POST /api/storefront/measurement-profile/claim`
 
+管理端的模板、品类、商品绑定和量体资料接口均要求 `Authorization: Bearer <Shopify Session Token>`。量体资料管理接口会按 Session Token 中的店铺身份过滤数据；未携带或 Token 无效时返回 HTTP 401。
+
 CF 对外接口、鉴权、请求响应及实施状态见 [`doc/cf-api-reference.md`](doc/cf-api-reference.md)。Shopify 认证、普通套装商品、Ajax Cart、Line Item Properties、D1 配置快照和订单 Webhook 的完整对接约定见 [`doc/shopify-integration-api.md`](doc/shopify-integration-api.md)。
 
 下一阶段 Storefront 定制器与购物车集成任务见 [`doc/tasks/storefront-customizer-cart-integration.md`](doc/tasks/storefront-customizer-cart-integration.md)。
@@ -92,7 +94,7 @@ POC 商品 ID 为 `10296845205799`。
 4. Deploy command 使用 `npx wrangler deploy --config dist/server/wrangler.json`。
 5. Worker 项目名必须为 `mtm-config-admin-mock`。
 
-生产部署前应将 Storefront CORS 从 `*` 收紧到 Shopify 正式域名，并为管理写接口增加鉴权。
+生产部署前应将 Storefront CORS 从 `*` 收紧到 Shopify 正式域名。管理接口已接入 Shopify Session Token 鉴权；后续仍需根据生产运营角色增加细粒度 RBAC。
 
 订单量体资料对账使用 `POST /api/webhooks/orders-create`。在 Shopify 应用中订阅 `orders/create`，将回调地址配置为该路径；服务端使用 `SHOPIFY_CLIENT_SECRET` 校验原始请求体 HMAC，并按 `X-Shopify-Webhook-Id` 幂等保存完整订单 Webhook 快照。订单快照可能包含个人信息，应设置访问控制、保留期限和客户数据删除流程。
 

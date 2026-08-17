@@ -11,21 +11,21 @@ export async function findGuestProfile(shopId: string, guestIdHash: string) {
   return database().prepare("SELECT * FROM measurement_profiles WHERE shop_id=? AND guest_id_hash=? AND expires_at>?").bind(shopId, guestIdHash, new Date().toISOString()).first<MeasurementProfileRow>();
 }
 
-export async function listMeasurementProfiles(limit = 200) {
+export async function listMeasurementProfiles(shopId: string, limit = 200) {
   await ensureDatabase();
-  return (await database().prepare("SELECT * FROM measurement_profiles ORDER BY updated_at DESC LIMIT ?").bind(limit).all<MeasurementProfileRow>()).results;
+  return (await database().prepare("SELECT * FROM measurement_profiles WHERE shop_id=? ORDER BY updated_at DESC LIMIT ?").bind(shopId, limit).all<MeasurementProfileRow>()).results;
 }
 
-export async function findMeasurementProfile(id: string) {
+export async function findMeasurementProfile(id: string, shopId: string) {
   await ensureDatabase();
-  return database().prepare("SELECT * FROM measurement_profiles WHERE id=?").bind(id).first<MeasurementProfileRow>();
+  return database().prepare("SELECT * FROM measurement_profiles WHERE id=? AND shop_id=?").bind(id, shopId).first<MeasurementProfileRow>();
 }
 
-export async function updateMeasurementProfileById(id: string, args: { unit: "CM" | "IN"; schemaVersion: number; measurementsJson: string }) {
+export async function updateMeasurementProfileById(id: string, shopId: string, args: { unit: "CM" | "IN"; schemaVersion: number; measurementsJson: string }) {
   await ensureDatabase();
-  await database().prepare("UPDATE measurement_profiles SET unit=?,schema_version=?,measurements_json=?,updated_at=? WHERE id=?")
-    .bind(args.unit, args.schemaVersion, args.measurementsJson, new Date().toISOString(), id).run();
-  return findMeasurementProfile(id);
+  await database().prepare("UPDATE measurement_profiles SET unit=?,schema_version=?,measurements_json=?,updated_at=? WHERE id=? AND shop_id=?")
+    .bind(args.unit, args.schemaVersion, args.measurementsJson, new Date().toISOString(), id, shopId).run();
+  return findMeasurementProfile(id, shopId);
 }
 
 export async function upsertCustomerProfile(args: { shopId: string; customerId: string; customerEmail?: string | null; customerName?: string | null; unit: "CM" | "IN"; schemaVersion: number; measurementsJson: string }) {
@@ -53,9 +53,9 @@ export async function deleteCustomerProfile(shopId: string, customerId: string) 
   return database().prepare("DELETE FROM measurement_profiles WHERE shop_id=? AND customer_id=?").bind(shopId, customerId).run();
 }
 
-export async function deleteMeasurementProfileById(id: string) {
+export async function deleteMeasurementProfileById(id: string, shopId: string) {
   await ensureDatabase();
-  return database().prepare("DELETE FROM measurement_profiles WHERE id=?").bind(id).run();
+  return database().prepare("DELETE FROM measurement_profiles WHERE id=? AND shop_id=?").bind(id, shopId).run();
 }
 
 export async function deleteGuestProfile(shopId: string, guestIdHash: string) {
