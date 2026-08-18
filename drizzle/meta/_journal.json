@@ -43,6 +43,13 @@
       "when": 1786420800000,
       "tag": "0006_customer_profile_contact",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1786982400000,
+      "tag": "0007_measurement_attributes",
+      "breakpoints": true
     }
   ]
 }

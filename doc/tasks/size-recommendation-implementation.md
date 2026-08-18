@@ -518,6 +518,8 @@ D1
 
 ## 11. 实施步骤
 
+> 实施状态（2026-08-18）：阶段一已完成量体属性 Domain、Schema、D1/Drizzle、Repository、Service、Admin API、店铺默认字典及 Admin 管理页面。模板显式关联与真实引用计数属于阶段二，本次未实施。
+
 ### 阶段一：量体属性元数据
 
 1. 新增 `MeasurementAttribute` Domain 类型和 Zod Schema。

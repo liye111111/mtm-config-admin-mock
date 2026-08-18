@@ -5,7 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { DEFAULT_EMBROIDERY_CONFIG, garmentCategoryLabels, type CustomizationOption, type CustomizationStep, type GarmentCategory, type GarmentComponentDefinition, type MeasurementBlock, type MeasurementFieldDefinition, type TemplateType, type TextInputConfig } from "@/src/domain";
 import { apiJson, isAuthorizationError, jsonRequest } from "./admin/api";
 import { AdminShell, type AdminView } from "./admin/app-shell";
-import type { CustomerMeasurementProfileDetail, MeasurementProfileAdminView, MeasurementProfileFilter, MeasurementProfilePage, ProductBindingView, ShopifyProductSelection, TemplateCategoryView, TemplateTab, TemplateVersionView, TemplateView } from "./admin/types";
+import { MeasurementAttributes } from "./admin/measurement-attributes";
+import type { CustomerMeasurementProfileDetail, MeasurementAttributeDraft, MeasurementAttributeView, MeasurementProfileAdminView, MeasurementProfileFilter, MeasurementProfilePage, ProductBindingView, ShopifyProductSelection, TemplateCategoryView, TemplateTab, TemplateVersionView, TemplateView } from "./admin/types";
 import { isShopifyEmbedded, selectShopifyProducts } from "./admin/shopify";
 
 const stepTypes: Array<[CustomizationStep["type"], string]> = [["variant", "SKU 选择"], ["options", "定制选项"], ["embroidery", "刺绣定制"], ["components", "组合/套装"], ["dimensions", "成品尺寸"], ["measurements", "量体尺寸"], ["review", "配置确认"]];
@@ -36,6 +37,8 @@ export function ConfigAdmin() {
   const [customerProfileDraft, setCustomerProfileDraft] = useState<CustomerProfileDraft | null>(null);
   const [categories, setCategories] = useState<TemplateCategoryView[]>([]);
   const [categoryDraft, setCategoryDraft] = useState<{id:string;code:string;name:string;sortOrder:number}|null>(null);
+  const [measurementAttributes, setMeasurementAttributes] = useState<MeasurementAttributeView[]>([]);
+  const [measurementAttributeDraft, setMeasurementAttributeDraft] = useState<MeasurementAttributeDraft | null>(null);
 
   const filtered = useMemo(() => items.filter((item) => `${item.name}${item.code}${item.categoryLabel}`.toLowerCase().includes(search.toLowerCase())), [items, search]);
   const published = items.filter((item) => item.status === "published").length;
@@ -51,6 +54,7 @@ export function ConfigAdmin() {
 
   async function loadBindings() { const payload = await apiJson<ProductBindingView[]>("/api/products"); setBindings(payload.data ?? []); }
   async function loadCategories() { const payload=await apiJson<TemplateCategoryView[]>("/api/template-categories"); setCategories(payload.data ?? []); }
+  async function loadMeasurementAttributes() { const payload = await apiJson<MeasurementAttributeView[]>("/api/measurement-attributes"); setMeasurementAttributes(payload.data ?? []); }
   async function loadMeasurementProfiles(filter = measurementProfileFilter, page = measurementProfileResult.page) {
     const query = new URLSearchParams({ filter, page: String(page), pageSize: String(measurementProfileResult.pageSize) });
     const payload = await apiJson<MeasurementProfilePage>(`/api/measurement-profiles?${query}`);
@@ -62,7 +66,7 @@ export function ConfigAdmin() {
   useEffect(() => {
     // Initial API hydration intentionally updates local UI state.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void Promise.all([loadTemplates(), loadBindings(), loadCategories()])
+    void Promise.all([loadTemplates(), loadBindings(), loadCategories(), loadMeasurementAttributes()])
       .catch((error: unknown) => handleError(error))
       .finally(() => setInitializing(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -240,7 +244,23 @@ export function ConfigAdmin() {
   async function saveCategory() { if(!categoryDraft)return; await run(async()=>{ await apiJson(categoryDraft.id?`/api/template-categories/${categoryDraft.id}`:"/api/template-categories",jsonRequest(categoryDraft.id?"PUT":"POST",categoryDraft)); setCategoryDraft(null); await Promise.all([loadCategories(),loadTemplates()]); },categoryDraft.id?"品类已更新":"品类已创建"); }
   async function removeCategory(category:TemplateCategoryView) { if(!confirm(`确认删除品类“${category.name}”？`))return; await run(async()=>{ await apiJson(`/api/template-categories/${category.id}`,{method:"DELETE"}); await loadCategories(); },"品类已删除"); }
 
-  function navigate(next: AdminView) { setView(next); setNotice(null); if (next === "categories") void loadCategories().catch(handleError); if (next === "products") void loadBindings().catch(handleError); if (next === "customers") void loadMeasurementProfiles().catch(handleError); }
+  async function saveMeasurementAttribute() {
+    if (!measurementAttributeDraft) return;
+    await run(async () => {
+      await apiJson(measurementAttributeDraft.id ? `/api/measurement-attributes/${measurementAttributeDraft.id}` : "/api/measurement-attributes", jsonRequest(measurementAttributeDraft.id ? "PUT" : "POST", measurementAttributeDraft));
+      setMeasurementAttributeDraft(null);
+      await loadMeasurementAttributes();
+    }, measurementAttributeDraft.id ? "量体属性已更新" : "量体属性已创建");
+  }
+  async function removeMeasurementAttribute(attribute: MeasurementAttributeView) {
+    if (!confirm(`确认删除量体属性“${attribute.name}”？`)) return;
+    await run(async () => { await apiJson(`/api/measurement-attributes/${attribute.id}`, { method: "DELETE" }); if (measurementAttributeDraft?.id === attribute.id) setMeasurementAttributeDraft(null); await loadMeasurementAttributes(); }, "量体属性已删除");
+  }
+  async function toggleMeasurementAttribute(attribute: MeasurementAttributeView) {
+    await run(async () => { await apiJson(`/api/measurement-attributes/${attribute.id}`, jsonRequest("PUT", { ...attribute, enabled: !attribute.enabled })); await loadMeasurementAttributes(); }, attribute.enabled ? "量体属性已停用" : "量体属性已启用");
+  }
+
+  function navigate(next: AdminView) { setView(next); setNotice(null); if (next === "categories") void loadCategories().catch(handleError); if (next === "measurement-attributes") void loadMeasurementAttributes().catch(handleError); if (next === "products") void loadBindings().catch(handleError); if (next === "customers") void loadMeasurementProfiles().catch(handleError); }
   function openTab(next: TemplateTab) { setTab(next); if (next === "versions") void loadVersions().catch(handleError); }
 
   if (accessDenied) return <AccessDeniedPage />;
@@ -257,6 +277,7 @@ export function ConfigAdmin() {
       onAddBlock={addMeasurementBlock} onUpdateBlock={updateMeasurementBlock} onRemoveBlock={removeMeasurementBlock} onAddField={addMeasurementField} onUpdateField={updateMeasurementField} onRemoveField={removeMeasurementField}
     />}
     {view === "categories" && <TemplateCategories categories={categories} draft={categoryDraft} onDraft={setCategoryDraft} onSave={()=>void saveCategory()} onDelete={(category)=>void removeCategory(category)}/>}
+    {view === "measurement-attributes" && <MeasurementAttributes items={measurementAttributes} draft={measurementAttributeDraft} onDraft={setMeasurementAttributeDraft} onSave={() => void saveMeasurementAttribute()} onDelete={(attribute) => void removeMeasurementAttribute(attribute)} onToggle={(attribute) => void toggleMeasurementAttribute(attribute)} onRefresh={() => void loadMeasurementAttributes().catch(handleError)}/>}
     {view === "products" && <ProductBindingsNew items={items} bindings={bindings} editing={editingBinding} selectedProducts={bindingProducts} versions={bindingVersions} embedded={isShopifyEmbedded()} onPick={pickProduct} onRemoveSelected={(gid) => setBindingProducts((current) => current.filter((product) => product.gid !== gid))} onNew={newBinding} onEdit={editBinding} onRemove={removeBinding} onSync={syncBinding} onPreview={previewBinding} onChange={(binding) => setEditingBinding(binding)} onTemplateChange={(templateId) => { if (!editingBinding) return; setEditingBinding({ ...editingBinding, templateId, publishedVersion: null }); void loadBindingVersions(templateId).catch(handleError); }} onCancel={() => { setEditingBinding(null); setBindingProducts([]); }} onSave={saveBinding} />}
     {view === "customers" && <CustomerProfiles result={measurementProfileResult} filter={measurementProfileFilter} bindings={bindings} templates={items} draft={customerProfileDraft} onDraft={setCustomerProfileDraft} onFilter={filterMeasurementProfiles} onPage={pageMeasurementProfiles} onNew={newCustomerProfile} onEdit={(profile) => void editCustomerProfile(profile)} onDelete={(profile) => void removeCustomerProfile(profile)} onSave={() => void saveCustomerProfile()} onCancel={() => setCustomerProfileDraft(null)} onRefresh={() => void loadMeasurementProfiles().catch(handleError)} />}
   </AdminShell>;

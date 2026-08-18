@@ -291,7 +291,18 @@ GET    /api/templates/{id}/versions
 - 发布后生成不可变版本；
 - 已被订单引用的历史版本不得修改或删除。
 
-### 6.2 商品绑定
+### 6.2 量体属性
+
+```http
+GET    /api/measurement-attributes
+POST   /api/measurement-attributes
+PUT    /api/measurement-attributes/{id}
+DELETE /api/measurement-attributes/{id}
+```
+
+量体属性是店铺级元数据字典，统一管理稳定编码、值类型、物理维度、标准单位、精度和导入别名。`GET` 支持 `search`、`dimension` 和 `status` 查询参数。属性编码创建后不可修改；已被配置引用的属性不能删除，应改为停用。所有读写按 Session Token 中的店铺隔离。
+
+### 6.3 商品绑定
 
 ```http
 GET /api/products
@@ -317,7 +328,7 @@ GET /api/products/{id}/storefront-preview
 
 管理端请求需要携带 Shopify Session Token。服务端验证店铺身份后通过 Admin GraphQL API 重新读取商品，浏览器返回的标题、主图和状态不作为可信数据。商品价格、SKU 和库存只读，不通过该接口编辑。
 
-### 6.3 后续管理接口
+### 6.4 后续管理接口
 
 ```http
 GET /api/admin/customizations

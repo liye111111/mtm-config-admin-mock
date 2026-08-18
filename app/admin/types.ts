@@ -1,4 +1,4 @@
-import type { GarmentCategory, MeasurementBlock, TemplateConfig, TemplateStatus } from "@/src/domain";
+import type { GarmentCategory, MeasurementAttribute, MeasurementBlock, TemplateConfig, TemplateStatus } from "@/src/domain";
 
 export type TemplateView = {
   id: string;
@@ -94,3 +94,5 @@ export type CustomerMeasurementProfileDetail = {
   updatedAt: string;
 };
 export type MutableMeasurementBlock = MeasurementBlock;
+export type MeasurementAttributeView = MeasurementAttribute;
+export type MeasurementAttributeDraft = Omit<MeasurementAttributeView, "shopId" | "referenceCount" | "createdAt" | "updatedAt">;

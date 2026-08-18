@@ -38,6 +38,7 @@ async function initializeDatabase() {
   const db = database();
   await db.batch([
     db.prepare("CREATE TABLE IF NOT EXISTS template_categories (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, name TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS measurement_attributes (id TEXT PRIMARY KEY, shop_id TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, description TEXT, value_type TEXT NOT NULL, dimension TEXT NOT NULL, canonical_unit TEXT NOT NULL, precision INTEGER NOT NULL DEFAULT 1, aliases_json TEXT NOT NULL DEFAULT '[]', enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(shop_id,code))"),
     db.prepare("CREATE TABLE IF NOT EXISTS templates (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, name TEXT NOT NULL, category TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', version INTEGER NOT NULL DEFAULT 1, schema_version INTEGER NOT NULL DEFAULT 2, config_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)"),
     db.prepare("CREATE TABLE IF NOT EXISTS template_versions (id TEXT PRIMARY KEY, template_id TEXT NOT NULL, version INTEGER NOT NULL, schema_version INTEGER NOT NULL DEFAULT 2, config_json TEXT NOT NULL, published_at TEXT NOT NULL, UNIQUE(template_id,version))"),
     db.prepare("CREATE TABLE IF NOT EXISTS product_bindings (id TEXT PRIMARY KEY, shop_id TEXT NOT NULL, shopify_product_gid TEXT NOT NULL, shopify_product_id TEXT NOT NULL, product_title TEXT NOT NULL, product_handle TEXT, product_image_url TEXT, product_image_alt TEXT, product_status TEXT NOT NULL, product_kind TEXT NOT NULL, variant_count INTEGER NOT NULL DEFAULT 0, online_store_url TEXT, shopify_admin_url TEXT, template_id TEXT NOT NULL, published_version INTEGER, enabled INTEGER NOT NULL DEFAULT 1, sync_status TEXT NOT NULL DEFAULT 'synced', sync_error TEXT, shopify_updated_at TEXT, last_synced_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(shop_id,shopify_product_gid), UNIQUE(shop_id,shopify_product_id))"),
@@ -48,6 +49,7 @@ async function initializeDatabase() {
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS measurement_profiles_guest_idx ON measurement_profiles(shop_id,guest_id_hash)"),
     db.prepare("CREATE INDEX IF NOT EXISTS measurement_profiles_expiry_idx ON measurement_profiles(expires_at)"),
     db.prepare("CREATE INDEX IF NOT EXISTS order_webhook_snapshots_order_idx ON order_webhook_snapshots(shop_id,shopify_order_id)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS measurement_attributes_shop_status_idx ON measurement_attributes(shop_id,enabled)"),
   ]);
   const profileColumns = await db.prepare("PRAGMA table_info(measurement_profiles)").all<{ name: string }>();
   if (!profileColumns.results.some((column) => column.name === "customer_email")) await db.prepare("ALTER TABLE measurement_profiles ADD COLUMN customer_email TEXT").run();

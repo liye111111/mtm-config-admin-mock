@@ -16,6 +16,23 @@ export type TemplateRow = {
 
 export type TemplateCategoryRow = { id: string; code: string; name: string; sort_order: number; created_at: string; updated_at: string; template_count?: number };
 
+export type MeasurementAttributeRow = {
+  id: string;
+  shop_id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  value_type: "number" | "enum";
+  dimension: "length" | "weight" | "size_code" | "none";
+  canonical_unit: "MM" | "CM" | "IN" | "KG" | "LB" | "CHI" | "NONE";
+  precision: number;
+  aliases_json: string;
+  enabled: number;
+  created_at: string;
+  updated_at: string;
+  reference_count?: number;
+};
+
 export type TemplateVersionRow = {
   id: string;
   template_id: string;

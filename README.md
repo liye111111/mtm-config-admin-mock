@@ -65,6 +65,8 @@ npm run build
 - `GET|POST /api/templates`
 - `GET|POST /api/template-categories`
 - `PUT|DELETE /api/template-categories/:id`
+- `GET|POST /api/measurement-attributes`
+- `PUT|DELETE /api/measurement-attributes/:id`
 - `PUT /api/templates/:id`
 - `POST /api/templates/:id/publish`
 - `GET /api/storefront/config/:productId`
@@ -74,7 +76,7 @@ npm run build
 - `GET /api/storefront/measurement-profile/claim-status`
 - `POST /api/storefront/measurement-profile/claim`
 
-管理端的模板、品类、商品绑定和量体资料接口均要求 `Authorization: Bearer <Shopify Session Token>`。量体资料管理接口会按 Session Token 中的店铺身份过滤数据；未携带或 Token 无效时返回 HTTP 401。
+管理端的模板、品类、量体属性、商品绑定和量体资料接口均要求 `Authorization: Bearer <Shopify Session Token>`。量体属性和量体资料管理接口会按 Session Token 中的店铺身份过滤数据；未携带或 Token 无效时返回 HTTP 401。
 
 CF 对外接口、鉴权、请求响应及实施状态见 [`doc/cf-api-reference.md`](doc/cf-api-reference.md)。Shopify 认证、普通套装商品、Ajax Cart、Line Item Properties、D1 配置快照和订单 Webhook 的完整对接约定见 [`doc/shopify-integration-api.md`](doc/shopify-integration-api.md)。
 

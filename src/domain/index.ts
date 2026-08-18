@@ -1,6 +1,7 @@
 export * from "./common";
 export * from "./customization-instance";
 export * from "./measurement";
+export * from "./measurement-attribute";
 export * from "./option";
 export * from "./persistence";
 export * from "./product-binding";
