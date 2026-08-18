@@ -8,10 +8,9 @@ const seedConfig = {
   orderLineMode: "single_line",
   components: [],
   steps: [
-    { id: "fabric", code: "fabric_fit", title: "面料与版型", type: "variant", required: true, enabled: true, sortOrder: 0, options: [] },
-    { id: "jacket", code: "jacket", title: "西服上衣", type: "options", displayType: "radio", required: true, enabled: true, sortOrder: 1, options: [] },
-    { id: "measure", code: "measurements", title: "量体尺寸", type: "measurements", required: true, enabled: true, sortOrder: 2, options: [] },
-    { id: "review", code: "review", title: "配置确认", type: "review", required: true, enabled: true, sortOrder: 3, options: [] },
+    { id: "jacket", code: "jacket", title: "西服上衣", type: "options", displayType: "radio", required: true, enabled: true, sortOrder: 0, options: [] },
+    { id: "measure", code: "measurements", title: "量体尺寸", type: "measurements", required: true, enabled: true, sortOrder: 1, options: [] },
+    { id: "review", code: "review", title: "配置确认", type: "review", required: true, enabled: true, sortOrder: 2, options: [] },
   ],
   measurementBlocks: [{
     id: "body-measurements", code: "body_measurements", name: "身体尺寸", applicableCategories: ["jacket"], enabled: true, sortOrder: 0,

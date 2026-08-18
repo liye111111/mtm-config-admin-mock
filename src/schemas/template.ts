@@ -43,7 +43,7 @@ export const customizationStepSchema = z.object({
   code: codeSchema,
   title: z.string().trim().min(1, "步骤名称不能为空"),
   description: z.string().trim().optional(),
-  type: z.enum(["variant", "options", "embroidery", "components", "dimensions", "measurements", "review"]),
+  type: z.enum(["options", "embroidery", "components", "measurements", "review"]),
   displayType: z.enum(["image_card", "color_swatch", "radio", "select", "text_input"]).optional(),
   required: z.boolean(),
   enabled: z.boolean(),

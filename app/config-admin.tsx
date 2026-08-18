@@ -9,7 +9,7 @@ import { MeasurementAttributes } from "./admin/measurement-attributes";
 import type { CustomerMeasurementProfileDetail, MeasurementAttributeDraft, MeasurementAttributeView, MeasurementProfileAdminView, MeasurementProfileFilter, MeasurementProfilePage, ProductBindingView, ShopifyProductSelection, TemplateCategoryView, TemplateTab, TemplateVersionView, TemplateView } from "./admin/types";
 import { isShopifyEmbedded, selectShopifyProducts } from "./admin/shopify";
 
-const stepTypes: Array<[CustomizationStep["type"], string]> = [["variant", "SKU 选择"], ["options", "定制选项"], ["embroidery", "刺绣定制"], ["components", "组合/套装"], ["dimensions", "成品尺寸"], ["measurements", "量体尺寸"], ["review", "配置确认"]];
+const stepTypes: Array<[CustomizationStep["type"], string]> = [["options", "定制选项"], ["embroidery", "刺绣定制"], ["components", "组合/套装"], ["measurements", "量体尺寸"], ["review", "配置确认"]];
 const displayTypes = [["image_card", "图片卡片"], ["color_swatch", "色卡"], ["radio", "单选"], ["select", "下拉选择"], ["text_input", "文本输入"]] as const;
 
 function clone<T>(value: T): T { return structuredClone(value); }
