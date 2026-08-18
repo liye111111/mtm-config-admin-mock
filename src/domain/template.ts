@@ -1,5 +1,5 @@
 import type { GarmentCategory, IsoDateTime, TemplateStatus, TemplateType } from "./common";
-import type { MeasurementBlock } from "./measurement";
+import type { DimensionFieldDefinition, MeasurementBlock } from "./measurement";
 import type { CustomizationOption, DisplayType } from "./option";
 
 export type StepType = "variant" | "options" | "embroidery" | "components" | "dimensions" | "measurements" | "review";
@@ -76,7 +76,7 @@ export type TemplateConfig = {
   components: GarmentComponentDefinition[];
   steps: CustomizationStep[];
   measurementBlocks: MeasurementBlock[];
-  dimensionBlocks: MeasurementBlock[];
+  dimensionBlocks: MeasurementBlock<DimensionFieldDefinition>[];
 };
 
 export type CustomizationTemplate = {

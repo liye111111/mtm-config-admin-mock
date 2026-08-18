@@ -16,9 +16,9 @@ const seedConfig = {
   measurementBlocks: [{
     id: "body-measurements", code: "body_measurements", name: "身体尺寸", applicableCategories: ["jacket"], enabled: true, sortOrder: 0,
     fields: [
-      { id: "height", code: "height", name: "身高", standardUnit: "CM", min: 140, max: 210, step: 1, required: true, enabled: true, sortOrder: 0 },
-      { id: "weight", code: "weight", name: "体重", standardUnit: "KG", min: 40, max: 180, step: 1, required: true, enabled: true, sortOrder: 1 },
-      { id: "sleeve-length", code: "sleeve_length", name: "袖长", standardUnit: "CM", min: 40, max: 90, step: 0.5, required: true, enabled: true, sortOrder: 2 },
+      { id: "height", attributeId: "measurement:local-dev.myshopify.com:height", inputUnit: "CM", min: 140, max: 210, step: 1, required: true, enabled: true, sortOrder: 0 },
+      { id: "weight", attributeId: "measurement:local-dev.myshopify.com:weight", inputUnit: "KG", min: 40, max: 180, step: 1, required: true, enabled: true, sortOrder: 1 },
+      { id: "sleeve-length", attributeId: "measurement:local-dev.myshopify.com:sleeve_length", inputUnit: "CM", min: 40, max: 90, step: 0.5, required: true, enabled: true, sortOrder: 2 },
     ],
   }],
 };

@@ -66,17 +66,26 @@ export const garmentComponentSchema = z.object({
 
 export const measurementFieldSchema = z.object({
   id: z.string().trim().min(1),
-  code: codeSchema,
-  name: z.string().trim().min(1, "尺寸字段名称不能为空"),
-  description: z.string().trim().optional(),
+  attributeId: z.string().trim().min(1, "请选择量体属性"),
+  labelOverride: z.string().trim().optional(),
+  descriptionOverride: z.string().trim().optional(),
   imageUrl: z.string().trim().optional(),
-  standardUnit: measurementUnitSchema,
+  inputUnit: z.enum(["MM", "CM", "IN", "KG", "LB", "CHI", "NONE"]),
   min: z.number(),
   max: z.number(),
   step: z.number().positive("尺寸步长必须大于 0"),
   required: z.boolean(),
   enabled: z.boolean(),
   sortOrder: z.number().int().nonnegative(),
+});
+
+export const dimensionFieldSchema = z.object({
+  id: z.string().trim().min(1), code: codeSchema,
+  name: z.string().trim().min(1, "尺寸字段名称不能为空"),
+  description: z.string().trim().optional(), imageUrl: z.string().trim().optional(),
+  standardUnit: measurementUnitSchema, min: z.number(), max: z.number(),
+  step: z.number().positive("尺寸步长必须大于 0"), required: z.boolean(),
+  enabled: z.boolean(), sortOrder: z.number().int().nonnegative(),
 });
 
 export const measurementBlockSchema = z.object({
@@ -90,6 +99,8 @@ export const measurementBlockSchema = z.object({
   fields: z.array(measurementFieldSchema),
 });
 
+export const dimensionBlockSchema = measurementBlockSchema.extend({ fields: z.array(dimensionFieldSchema) });
+
 export const templateConfigSchema = z.object({
   schemaVersion: z.literal(TEMPLATE_SCHEMA_VERSION),
   buttonLabel: z.string().trim().min(1, "前台按钮文字不能为空"),
@@ -99,7 +110,7 @@ export const templateConfigSchema = z.object({
   components: z.array(garmentComponentSchema),
   steps: z.array(customizationStepSchema),
   measurementBlocks: z.array(measurementBlockSchema),
-  dimensionBlocks: z.array(measurementBlockSchema).default([]),
+  dimensionBlocks: z.array(dimensionBlockSchema).default([]),
 });
 
 export function createEmptyTemplateConfig(): TemplateConfig {

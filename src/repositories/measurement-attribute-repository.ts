@@ -16,13 +16,13 @@ const DEFAULT_ATTRIBUTES = [
   { code: "foot_width", name: "脚宽", dimension: "length", canonicalUnit: "MM", precision: 0, aliases: ["脚宽"] },
 ] as const;
 
+export function defaultMeasurementAttributeId(shopId: string, code: string) { return `measurement:${shopId}:${code}`; }
+
 export async function ensureDefaultAttributes(shopId: string) {
   await ensureDatabase();
-  const existing = await database().prepare("SELECT COUNT(*) count FROM measurement_attributes WHERE shop_id=?").bind(shopId).first<{ count: number }>();
-  if (existing?.count) return;
   const now = new Date().toISOString();
   await database().batch(DEFAULT_ATTRIBUTES.map((attribute) => database().prepare("INSERT OR IGNORE INTO measurement_attributes (id,shop_id,code,name,description,value_type,dimension,canonical_unit,precision,aliases_json,enabled,created_at,updated_at) VALUES (?,?,?,?,?,'number',?,?,?,?,1,?,?)")
-    .bind(crypto.randomUUID(), shopId, attribute.code, attribute.name, null, attribute.dimension, attribute.canonicalUnit, attribute.precision, JSON.stringify(attribute.aliases), now, now)));
+    .bind(defaultMeasurementAttributeId(shopId, attribute.code), shopId, attribute.code, attribute.name, null, attribute.dimension, attribute.canonicalUnit, attribute.precision, JSON.stringify(attribute.aliases), now, now)));
 }
 
 export async function listMeasurementAttributes(shopId: string, query: MeasurementAttributeQuery) {
@@ -32,17 +32,17 @@ export async function listMeasurementAttributes(shopId: string, query: Measureme
   if (query.search) { conditions.push("(LOWER(name) LIKE ? OR LOWER(code) LIKE ? OR LOWER(aliases_json) LIKE ?)"); const pattern = `%${query.search.toLowerCase()}%`; bindings.push(pattern, pattern, pattern); }
   if (query.dimension !== "all") { conditions.push("dimension=?"); bindings.push(query.dimension); }
   if (query.status !== "all") { conditions.push("enabled=?"); bindings.push(query.status === "enabled" ? 1 : 0); }
-  return (await database().prepare(`SELECT *, 0 reference_count FROM measurement_attributes WHERE ${conditions.join(" AND ")} ORDER BY enabled DESC, dimension, name, created_at`).bind(...bindings).all<MeasurementAttributeRow>()).results;
+  return (await database().prepare(`SELECT measurement_attributes.*, (SELECT COUNT(DISTINCT templates.id) FROM templates, json_tree(templates.config_json) WHERE json_tree.key='attributeId' AND json_tree.value=measurement_attributes.id) reference_count FROM measurement_attributes WHERE ${conditions.join(" AND ")} ORDER BY enabled DESC, dimension, name, created_at`).bind(...bindings).all<MeasurementAttributeRow>()).results;
 }
 
 export async function findMeasurementAttribute(id: string, shopId: string) {
   await ensureDatabase();
-  return database().prepare("SELECT *, 0 reference_count FROM measurement_attributes WHERE id=? AND shop_id=?").bind(id, shopId).first<MeasurementAttributeRow>();
+  return database().prepare("SELECT measurement_attributes.*, (SELECT COUNT(DISTINCT templates.id) FROM templates, json_tree(templates.config_json) WHERE json_tree.key='attributeId' AND json_tree.value=measurement_attributes.id) reference_count FROM measurement_attributes WHERE id=? AND shop_id=?").bind(id, shopId).first<MeasurementAttributeRow>();
 }
 
 export async function findMeasurementAttributeByCode(code: string, shopId: string) {
   await ensureDatabase();
-  return database().prepare("SELECT *, 0 reference_count FROM measurement_attributes WHERE code=? AND shop_id=?").bind(code, shopId).first<MeasurementAttributeRow>();
+  return database().prepare("SELECT measurement_attributes.*, (SELECT COUNT(DISTINCT templates.id) FROM templates, json_tree(templates.config_json) WHERE json_tree.key='attributeId' AND json_tree.value=measurement_attributes.id) reference_count FROM measurement_attributes WHERE code=? AND shop_id=?").bind(code, shopId).first<MeasurementAttributeRow>();
 }
 
 export async function createMeasurementAttribute(shopId: string, input: MeasurementAttributeInput) {

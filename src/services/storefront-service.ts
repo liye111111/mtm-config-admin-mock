@@ -5,17 +5,18 @@ import * as templates from "@/src/repositories/template-repository";
 import * as customizations from "@/src/repositories/customization-repository";
 import { verifyShopifyVariant } from "@/src/integrations/shopify-admin";
 import type { StorefrontIdentity } from "@/src/integrations/shopify-app-proxy";
+import { resolveMeasurementMetadata, type ResolvedTemplateConfig } from "./measurement-config-service";
 
-async function storefrontConfiguration(row: NonNullable<Awaited<ReturnType<typeof templates.findPublishedTemplateForProduct>>>, productId: string) {
+async function storefrontConfiguration(shopId: string, row: NonNullable<Awaited<ReturnType<typeof templates.findPublishedTemplateForProduct>>>, productId: string) {
   const view = templateView(row);
-  const config: TemplateConfig & { components: Array<TemplateConfig["components"][number] & { template?: object }> } = structuredClone(view.config);
+  const config: ResolvedTemplateConfig & { components: Array<TemplateConfig["components"][number] & { template?: object }> } = await resolveMeasurementMetadata(shopId, view.config);
   if (config.templateType === "composite") {
     config.components = await Promise.all(config.components.map(async (component) => {
       if (!component.childTemplateId) return component;
       const child = await templates.findPublishedTemplate(component.childTemplateId);
       if (!child) return component;
       const childView = templateView(child);
-      return { ...component, template: { templateId: childView.code, version: childView.version, ...childView.config } };
+      return { ...component, template: { templateId: childView.code, version: childView.version, ...await resolveMeasurementMetadata(shopId, childView.config) } };
     }));
   }
   return { templateId: view.code, version: view.version, productId, ...config };
@@ -24,11 +25,11 @@ async function storefrontConfiguration(row: NonNullable<Awaited<ReturnType<typeo
 export async function getStorefrontConfig(shopId: string, productId: string) {
   const row = await templates.findPublishedTemplateForProduct(shopId, productId);
   if (!row) return { enabled: false as const, configuration: null };
-  return { enabled: true as const, configuration: await storefrontConfiguration(row, productId) };
+  return { enabled: true as const, configuration: await storefrontConfiguration(shopId, row, productId) };
 }
 
 function record(value: unknown): Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
-function validateTemplateSelections(config: TemplateConfig, selections: Record<string, unknown>, summary: string[], properties: Record<string, string>, validateMeasurements = true, privatePrefix = "_", stepPropertyPrefix = "_mtm_step_") {
+function validateTemplateSelections(config: ResolvedTemplateConfig, selections: Record<string, unknown>, summary: string[], properties: Record<string, string>, validateMeasurements = true, privatePrefix = "_", stepPropertyPrefix = "_mtm_step_") {
   for (const step of config.steps.filter((item) => item.enabled)) {
     if (step.type === "options" && step.options.length) {
       const selected = String(selections[step.code] ?? "");
@@ -106,7 +107,7 @@ async function validateAuthoritatively(shopId: string, input: ValidateConfigurat
   const row = await templates.findPublishedTemplateForProduct(shopId, input.productId);
   if (!row) throw new NotFoundError("商品没有已发布的定制配置");
   if (input.configVersion && input.configVersion !== row.version) throw new AppError(`配置版本已更新，请刷新页面（当前 v${row.version}）`, 409);
-  const config = templateView(row).config;
+  const config = await resolveMeasurementMetadata(shopId, templateView(row).config);
   await verifyShopifyVariant(shopId, input.productId, input.variantId);
   const summary: string[] = [];
   const lineItemProperties: Record<string, string> = {};
@@ -121,7 +122,7 @@ async function validateAuthoritatively(shopId: string, input: ValidateConfigurat
       // A composite template collects measurements once at the root level.
       // Child templates contribute customization options only and must not
       // require a second, component-local copy of the same measurements.
-      validateTemplateSelections(templateView(child).config, selected, summary, lineItemProperties, false, `_mtm_${component.code}_`, `_mtm_${component.code}_step_`);
+      validateTemplateSelections(await resolveMeasurementMetadata(shopId, templateView(child).config), selected, summary, lineItemProperties, false, `_mtm_${component.code}_`, `_mtm_${component.code}_step_`);
     }
   }
   return { row, summary: summary.join(" / ") || `定制配置 v${row.version}`, lineItemProperties };
