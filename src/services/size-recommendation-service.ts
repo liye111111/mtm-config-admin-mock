@@ -7,10 +7,10 @@ import { parseSizeChartConfig } from "@/src/schemas/size-chart";
 
 type Basis = { attributeCode: string; input: number; min?: number; max?: number; target?: number; weight?: number };
 type Candidate = { sizeCode: string; score: number; basis: Basis[]; rowIndex: number };
-type Reason = "recommended" | "product_type_missing" | "size_chart_unavailable" | "missing_required_measurements" | "no_rule_matched" | "recommended_size_unavailable";
+type Reason = "recommended" | "product_type_missing" | "size_chart_unavailable" | "missing_required_measurements" | "no_rule_matched" | "size_definition_missing" | "recommended_size_unavailable";
 
 function result(reason: Reason, messages: string[], details: Record<string, unknown> = {}, recommendedSize: string | null = null, basis: Basis[] = []) {
-  return { recommendationVersion: 1, recommendedSize, reason, basis, hint: { level: recommendedSize ? "success" : "info", messages }, ...details };
+  return { recommendationVersion: 1, recommendedSizeCode: null as string | null, recommendedSize, reason, basis, hint: { level: recommendedSize ? "success" : "info", messages }, ...details };
 }
 
 function missingAttributes(attributes: SizeChartInputAttribute[], measurements: Record<string, number>) {
@@ -73,7 +73,9 @@ export async function recommendSize(shopId: string, input: SizeRecommendationInp
   if (missing.length) return result("missing_required_measurements", [`尺码表“${chart.name}”缺少必填量体字段：${missing.join("、")}。`], { productType, sizeChartCode: chart.code, sizeChartVersion: chart.version, missingAttributes: missing });
   const candidate = recommend(config, input.measurements);
   if (!candidate) return result("no_rule_matched", [`已使用尺码表“${chart.name}”v${chart.version}，但没有规则匹配当前量体数据。`, `算法：${config.algorithm.code}@${config.algorithm.version}`], { productType, sizeChartCode: chart.code, sizeChartVersion: chart.version });
-  const details = { productType, sizeChartCode: chart.code, sizeChartVersion: chart.version, algorithm: `${config.algorithm.code}@${config.algorithm.version}`, score: candidate.score };
-  if (!input.availableSizes.includes(candidate.sizeCode)) return result("recommended_size_unavailable", [`理论推荐尺码：${candidate.sizeCode}，但当前商品没有该尺码选项，未自动选中。`, ...basisHints(candidate.basis)], { ...details, theoreticalSize: candidate.sizeCode }, null, candidate.basis);
-  return result("recommended", [`推荐尺码：${candidate.sizeCode}`, `尺码表：${chart.name} v${chart.version}`, ...basisHints(candidate.basis)], details, candidate.sizeCode, candidate.basis);
+  const size = config.sizes.find((item) => item.code === candidate.sizeCode);
+  if (!size?.label) return result("size_definition_missing", [`规则命中内部尺码编码“${candidate.sizeCode}”，但可推荐尺码中没有对应的展示名称。`], { productType, sizeChartCode: chart.code, sizeChartVersion: chart.version, matchedSizeCode: candidate.sizeCode }, null, candidate.basis);
+  const details = { productType, sizeChartCode: chart.code, sizeChartVersion: chart.version, algorithm: `${config.algorithm.code}@${config.algorithm.version}`, score: candidate.score, recommendedSizeCode: candidate.sizeCode };
+  if (!input.availableSizes.includes(size.label)) return result("recommended_size_unavailable", [`理论推荐尺码：${size.label}（内部编码 ${candidate.sizeCode}），但当前商品没有该尺码选项，未自动选中。`, ...basisHints(candidate.basis)], { ...details, theoreticalSize: size.label, theoreticalSizeCode: candidate.sizeCode }, null, candidate.basis);
+  return result("recommended", [`推荐尺码：${size.label}（内部编码 ${candidate.sizeCode}）`, `尺码表：${chart.name} v${chart.version}`, ...basisHints(candidate.basis)], details, size.label, candidate.basis);
 }
