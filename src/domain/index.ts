@@ -5,4 +5,5 @@ export * from "./measurement-attribute";
 export * from "./option";
 export * from "./persistence";
 export * from "./product-binding";
+export * from "./size-chart";
 export * from "./template";

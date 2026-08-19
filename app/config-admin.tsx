@@ -6,6 +6,7 @@ import { DEFAULT_EMBROIDERY_CONFIG, garmentCategoryLabels, type CustomizationOpt
 import { apiJson, isAuthorizationError, jsonRequest } from "./admin/api";
 import { AdminShell, type AdminView } from "./admin/app-shell";
 import { MeasurementAttributes } from "./admin/measurement-attributes";
+import { SizeCharts } from "./admin/size-charts";
 import type { CustomerMeasurementProfileDetail, MeasurementAttributeDraft, MeasurementAttributeView, MeasurementProfileAdminView, MeasurementProfileFilter, MeasurementProfilePage, ProductBindingView, ShopifyProductSelection, TemplateCategoryView, TemplateTab, TemplateVersionView, TemplateView } from "./admin/types";
 import { isShopifyEmbedded, selectShopifyProducts } from "./admin/shopify";
 
@@ -279,6 +280,7 @@ export function ConfigAdmin() {
     />}
     {view === "categories" && <TemplateCategories categories={categories} draft={categoryDraft} onDraft={setCategoryDraft} onSave={()=>void saveCategory()} onDelete={(category)=>void removeCategory(category)}/>}
     {view === "measurement-attributes" && <MeasurementAttributes items={measurementAttributes} draft={measurementAttributeDraft} onDraft={setMeasurementAttributeDraft} onSave={() => void saveMeasurementAttribute()} onDelete={(attribute) => void removeMeasurementAttribute(attribute)} onToggle={(attribute) => void toggleMeasurementAttribute(attribute)} onRefresh={() => void loadMeasurementAttributes().catch(handleError)}/>}
+    {view === "size-charts" && <SizeCharts measurementAttributes={measurementAttributes} />}
     {view === "products" && <ProductBindingsNew items={items} bindings={bindings} editing={editingBinding} selectedProducts={bindingProducts} versions={bindingVersions} embedded={isShopifyEmbedded()} onPick={pickProduct} onRemoveSelected={(gid) => setBindingProducts((current) => current.filter((product) => product.gid !== gid))} onNew={newBinding} onEdit={editBinding} onRemove={removeBinding} onSync={syncBinding} onPreview={previewBinding} onChange={(binding) => setEditingBinding(binding)} onTemplateChange={(templateId) => { if (!editingBinding) return; setEditingBinding({ ...editingBinding, templateId, publishedVersion: null }); void loadBindingVersions(templateId).catch(handleError); }} onCancel={() => { setEditingBinding(null); setBindingProducts([]); }} onSave={saveBinding} />}
     {view === "customers" && <CustomerProfiles result={measurementProfileResult} filter={measurementProfileFilter} bindings={bindings} templates={items} draft={customerProfileDraft} onDraft={setCustomerProfileDraft} onFilter={filterMeasurementProfiles} onPage={pageMeasurementProfiles} onNew={newCustomerProfile} onEdit={(profile) => void editCustomerProfile(profile)} onDelete={(profile) => void removeCustomerProfile(profile)} onSave={() => void saveCustomerProfile()} onCancel={() => setCustomerProfileDraft(null)} onRefresh={() => void loadMeasurementProfiles().catch(handleError)} />}
   </AdminShell>;

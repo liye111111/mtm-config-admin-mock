@@ -85,3 +85,31 @@ export type MeasurementProfileRow = {
   created_at: string;
   updated_at: string;
 };
+
+export type SizeChartRow = {
+  id: string;
+  shop_id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  status: "active" | "disabled";
+  current_version_id: string | null;
+  created_at: string;
+  updated_at: string;
+  current_version?: number | null;
+  draft_version_id?: string | null;
+  draft_version?: number | null;
+  draft_config_json?: string | null;
+};
+
+export type SizeChartVersionRow = {
+  id: string;
+  size_chart_id: string;
+  version: number;
+  status: "draft" | "published" | "archived";
+  algorithm_code: "range_matrix" | "nearest_profile" | "direct_lookup";
+  algorithm_version: number;
+  config_json: string;
+  created_at: string;
+  published_at: string | null;
+};
