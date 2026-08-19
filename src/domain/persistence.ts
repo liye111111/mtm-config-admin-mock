@@ -113,3 +113,15 @@ export type SizeChartVersionRow = {
   created_at: string;
   published_at: string | null;
 };
+
+export type ProductTypeSizeChartBindingRow = {
+  id: string;
+  shop_id: string;
+  product_type: string;
+  normalized_product_type: string;
+  size_chart_id: string;
+  size_chart_name?: string;
+  size_chart_code?: string;
+  created_at: string;
+  updated_at: string;
+};

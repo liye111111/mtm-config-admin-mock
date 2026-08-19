@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { sizeRecommendationAlgorithms, type DirectLookupConfig, type MeasurementAttribute, type NearestProfileConfig, type RangeMatrixConfig, type SizeChartConfig, type SizeChartInputAttribute, type SizeChartVersionView, type SizeChartView, type SizeDefinition, type SizeRecommendationAlgorithmCode } from "@/src/domain";
+import { sizeRecommendationAlgorithms, type DirectLookupConfig, type MeasurementAttribute, type NearestProfileConfig, type ProductTypeSizeChartBindingView, type RangeMatrixConfig, type SizeChartConfig, type SizeChartInputAttribute, type SizeChartVersionView, type SizeChartView, type SizeDefinition, type SizeRecommendationAlgorithmCode } from "@/src/domain";
 import { apiJson, jsonRequest } from "./api";
 
-type Tab = "base" | "configuration" | "versions";
+type Tab = "base" | "configuration" | "product-types" | "versions";
 type Notice = { type: "success" | "error"; text: string };
 
 const algorithms = Object.entries(sizeRecommendationAlgorithms) as Array<[SizeRecommendationAlgorithmCode, (typeof sizeRecommendationAlgorithms)[SizeRecommendationAlgorithmCode]]>;
@@ -24,6 +24,8 @@ export function SizeCharts({ measurementAttributes }: { measurementAttributes: M
   const [selectedId, setSelectedId] = useState("");
   const [draft, setDraft] = useState<SizeChartView | null>(null);
   const [versions, setVersions] = useState<SizeChartVersionView[]>([]);
+  const [productTypes, setProductTypes] = useState<string[]>([]);
+  const [productTypeBindings, setProductTypeBindings] = useState<ProductTypeSizeChartBindingView[]>([]);
   const [tab, setTab] = useState<Tab>("base");
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
@@ -83,6 +85,34 @@ export function SizeCharts({ measurementAttributes }: { measurementAttributes: M
     await run(async () => { await apiJson(`/api/size-charts/${draft.id}`, { method: "DELETE" }); await load(""); }, "尺码表已删除");
   }
   async function openVersions() { setTab("versions"); if (!draft) return; const payload = await apiJson<SizeChartVersionView[]>(`/api/size-charts/${draft.id}/versions`); setVersions(payload.data ?? []); }
+  async function openProductTypes() {
+    setTab("product-types");
+    if (!draft) return;
+    await run(async () => {
+      const [typesPayload, bindingsPayload] = await Promise.all([
+        apiJson<string[]>("/api/shopify/product-types"),
+        apiJson<ProductTypeSizeChartBindingView[]>(`/api/size-charts/${draft.id}/product-types`),
+      ]);
+      setProductTypes(typesPayload.data ?? []);
+      setProductTypeBindings(bindingsPayload.data ?? []);
+    }, "已同步 Shopify 自定义分类");
+  }
+  async function addProductType(productType: string) {
+    if (!draft) return;
+    await run(async () => {
+      await apiJson(`/api/size-charts/${draft.id}/product-types`, jsonRequest("POST", { productType }));
+      const payload = await apiJson<ProductTypeSizeChartBindingView[]>(`/api/size-charts/${draft.id}/product-types`);
+      setProductTypeBindings(payload.data ?? []);
+    }, `自定义分类“${productType}”已绑定`);
+  }
+  async function removeProductType(binding: ProductTypeSizeChartBindingView) {
+    if (!draft || !confirm(`确认解除自定义分类“${binding.productType}”的尺码表绑定？`)) return;
+    await run(async () => {
+      await apiJson(`/api/size-charts/${draft.id}/product-types/${binding.id}`, { method: "DELETE" });
+      const payload = await apiJson<ProductTypeSizeChartBindingView[]>(`/api/size-charts/${draft.id}/product-types`);
+      setProductTypeBindings(payload.data ?? []);
+    }, `自定义分类“${binding.productType}”已解绑`);
+  }
 
   return <>
     {notice && <div className={`notice ${notice.type}`}>{notice.text}</div>}
@@ -93,9 +123,10 @@ export function SizeCharts({ measurementAttributes }: { measurementAttributes: M
       <section className="panel editor size-chart-editor">
         {!draft || !config ? <div className="empty">新建或选择一张尺码表开始配置</div> : <>
           <div className="editor-head"><div><h3>{draft.name}</h3><p><code>{draft.code}</code> · 草稿 v{draft.draftVersion}</p></div><div className="actions"><button className="danger" disabled={busy || Boolean(draft.currentVersionId)} title={draft.currentVersionId ? "已发布尺码表只能停用" : ""} onClick={() => void remove()}>删除</button><button className="secondary" disabled={busy} onClick={() => void save()}>保存草稿</button><button className="primary" disabled={busy} onClick={() => void publish()}>校验并发布</button></div></div>
-          <div className="tabs"><button className={tab === "base" ? "active" : ""} onClick={() => setTab("base")}>基本信息</button><button className={tab === "configuration" ? "active" : ""} onClick={() => setTab("configuration")}>算法与尺码数据</button><button className={tab === "versions" ? "active" : ""} onClick={() => void openVersions()}>版本历史</button></div>
+          <div className="tabs"><button className={tab === "base" ? "active" : ""} onClick={() => setTab("base")}>基本信息</button><button className={tab === "configuration" ? "active" : ""} onClick={() => setTab("configuration")}>算法与尺码数据</button><button className={tab === "product-types" ? "active" : ""} onClick={() => void openProductTypes()}>适用类目</button><button className={tab === "versions" ? "active" : ""} onClick={() => void openVersions()}>版本历史</button></div>
           {tab === "base" && <BaseTab draft={draft} onChange={setDraft}/>} 
           {tab === "configuration" && <ConfigurationTab config={config} attributes={measurementAttributes.filter((item) => item.enabled && item.valueType === "number")} onConfig={updateConfig} onInputs={updateInputs} onSizes={updateSizes}/>} 
+          {tab === "product-types" && <ProductTypesTab chart={draft} productTypes={productTypes} bindings={productTypeBindings} busy={busy} onRefresh={() => void openProductTypes()} onAdd={(productType) => void addProductType(productType)} onRemove={(binding) => void removeProductType(binding)}/>}
           {tab === "versions" && <VersionsTab versions={versions}/>} 
         </>}
       </section>
@@ -133,5 +164,16 @@ function AlgorithmData({ config, onConfig }: { config: SizeChartConfig; onConfig
 }
 
 function SizeSelect({ value, sizes, onChange }: { value: string; sizes: SizeDefinition[]; onChange: (value: string) => void }) { return <select value={value} onChange={(event) => onChange(event.target.value)}><option value="">请选择尺码</option>{sizes.map((size) => <option key={size.code} value={size.code}>{size.label || size.code}</option>)}</select>; }
+function ProductTypesTab({ chart, productTypes, bindings, busy, onRefresh, onAdd, onRemove }: { chart: SizeChartView; productTypes: string[]; bindings: ProductTypeSizeChartBindingView[]; busy: boolean; onRefresh: () => void; onAdd: (productType: string) => void; onRemove: (binding: ProductTypeSizeChartBindingView) => void }) {
+  const [search, setSearch] = useState("");
+  const keyword = search.trim().toLocaleLowerCase("zh-CN");
+  const filtered = productTypes.filter((value) => !keyword || value.toLocaleLowerCase("zh-CN").includes(keyword));
+  const bindingByType = new Map(bindings.map((binding) => [binding.productType.trim().toLocaleLowerCase("zh-CN"), binding]));
+  const selected = bindings.filter((binding) => binding.sizeChartId === chart.id);
+  return <div className="product-type-tab">
+    <section className="config-section"><div className="section-title"><div><h4>已绑定自定义类目</h4><p>商品的 Shopify Product type 命中以下分类时，将使用当前尺码表的已发布版本。</p></div><button className="secondary" disabled={busy} onClick={onRefresh}>同步 Shopify 分类</button></div>{selected.length ? <div className="bound-product-types">{selected.map((binding) => <div key={binding.id} className="bound-product-type"><div><strong>{binding.productType}</strong><small>Product type</small></div><button className="link danger-text" disabled={busy} onClick={() => onRemove(binding)}>解除绑定</button></div>)}</div> : <div className="category-empty">尚未绑定自定义类目</div>}</section>
+    <section className="config-section"><div className="section-title"><div><h4>店铺自定义类目</h4><p>数据来自 Shopify Admin 中商品的“产品类型”字段；一个分类只能绑定一张尺码表。</p></div></div><div className="product-type-search"><input className="search" value={search} placeholder="搜索 Shopify Product type" onChange={(event) => setSearch(event.target.value)}/><span>{filtered.length} 个分类</span></div><div className="product-type-options">{filtered.map((productType) => { const existing = bindingByType.get(productType.trim().toLocaleLowerCase("zh-CN")); const current = existing?.sizeChartId === chart.id; return <div key={productType} className={`product-type-option ${current ? "selected" : ""}`}><div><strong>{productType}</strong>{existing && !current ? <small>已绑定：{existing.sizeChartName}</small> : <small>{current ? "已绑定当前尺码表" : "未绑定"}</small>}</div><button className={current ? "secondary" : "primary"} disabled={busy || Boolean(existing)} onClick={() => onAdd(productType)}>{current ? "已绑定" : existing ? "已被占用" : "绑定"}</button></div>; })}{!filtered.length && <div className="category-empty">Shopify 中尚未设置自定义产品类型，或没有匹配结果。</div>}</div></section>
+  </div>;
+}
 function VersionsTab({ versions }: { versions: SizeChartVersionView[] }) { return <div className="panel table-wrap embedded-table"><table><thead><tr><th>版本</th><th>状态</th><th>算法</th><th>创建时间</th><th>发布时间</th></tr></thead><tbody>{versions.map((version) => <tr key={version.id}><td><strong>v{version.version}</strong></td><td>{version.status === "draft" ? "草稿" : version.status === "published" ? "当前发布" : "历史发布"}</td><td><code>{version.algorithmCode}@{version.algorithmVersion}</code></td><td>{new Date(version.createdAt).toLocaleString("zh-CN")}</td><td>{version.publishedAt ? new Date(version.publishedAt).toLocaleString("zh-CN") : "—"}</td></tr>)}</tbody></table></div>; }
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="field"><span>{label}</span>{children}</label>; }

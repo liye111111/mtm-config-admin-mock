@@ -319,6 +319,16 @@ td small{display:block;color:var(--muted);margin-top:3px}
 .lookup-row>span{text-align:center;color:var(--muted);font-size:12px}
 .badge.disabled{background:#f1f1f1;color:#616161}
 .badge.active{background:var(--green-bg);color:#186a45}
+.bound-product-types,.product-type-options{display:grid;gap:8px}
+.bound-product-type,.product-type-option{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;border:1px solid var(--line);border-radius:9px;background:var(--surface)}
+.bound-product-type strong,.bound-product-type small,.product-type-option strong,.product-type-option small{display:block}
+.bound-product-type strong,.product-type-option strong{font-size:13px}
+.bound-product-type small,.product-type-option small{margin-top:3px;color:var(--muted);font-size:11px}
+.product-type-option.selected{border-color:#8bc5a9;background:#f4fbf7}
+.product-type-option .primary,.product-type-option .secondary{min-width:82px}
+.product-type-search{display:grid;grid-template-columns:minmax(240px,1fr) auto;gap:12px;align-items:center;margin-bottom:12px}
+.product-type-search span{color:var(--muted);font-size:12px}
+.category-empty{padding:28px 18px;border:1px dashed #c9c9c9;border-radius:9px;text-align:center;color:var(--muted);font-size:12px;background:var(--surface-secondary)}
 
 /* Shopify Admin / Polaris-style checkbox */
 input[type="checkbox"]{

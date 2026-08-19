@@ -62,6 +62,16 @@ export type SizeChartVersionView = {
   publishedAt: string | null;
 };
 
+export type ProductTypeSizeChartBindingView = {
+  id: string;
+  productType: string;
+  sizeChartId: string;
+  sizeChartName: string;
+  sizeChartCode: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export const sizeRecommendationAlgorithms = {
   range_matrix: {
     name: "区间矩阵",
@@ -79,4 +89,3 @@ export const sizeRecommendationAlgorithms = {
     calculation: ["读取指定的唯一量体属性，并按标准单位处理。", "从上到下查找包含输入值的映射区间，区间包含边界。", "第一条命中的映射即为推荐结果，因此区间不能重叠。", "缺少输入或没有区间命中时返回无法推荐。"],
   },
 } as const;
-

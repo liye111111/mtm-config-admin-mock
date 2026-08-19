@@ -142,3 +142,30 @@ export async function authenticateAdminList(request: Request) {
   if (!authorization?.startsWith("Bearer ")) throw new AppError("请从 Shopify Admin 重新打开应用", 401);
   return authenticateSessionToken(authorization.slice(7));
 }
+
+export async function getShopifyProductTypes(request: Request, search = "") {
+  const local = isLocalRequest(request);
+  const useMock = local && request.headers.get("X-MTM-Mock-Shopify") === "1";
+  if (useMock) return ["西服外套", "西裤", "背心"].filter((value) => value.includes(search.trim()));
+  const useClientCredentials = local && env.SHOPIFY_AUTH_MODE === "client_credentials";
+  const authorization = request.headers.get("Authorization");
+  const sessionToken = authorization?.startsWith("Bearer ") ? authorization.slice(7) : undefined;
+  const shop = useClientCredentials ? configuredShop() : await authenticateSessionToken(sessionToken || "");
+  const token = await accessToken(shop, sessionToken, useClientCredentials);
+  const productTypes: string[] = [];
+  let after: string | null = null;
+  do {
+    const response = await fetch(`https://${shop}/admin/api/2026-07/graphql.json`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": token },
+      body: JSON.stringify({ query: `query ProductTypes($after: String) { productTypes(first: 250, after: $after) { nodes pageInfo { hasNextPage endCursor } } }`, variables: { after } }),
+    });
+    const payload = await response.json() as { data?: { productTypes?: { nodes: string[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } }; errors?: Array<{ message: string }> };
+    const error = payload.errors?.[0]?.message;
+    if (!response.ok || error || !payload.data?.productTypes) throw new AppError(error || "Shopify 自定义分类查询失败", 502);
+    productTypes.push(...payload.data.productTypes.nodes.filter(Boolean));
+    after = payload.data.productTypes.pageInfo.hasNextPage ? payload.data.productTypes.pageInfo.endCursor : null;
+  } while (after);
+  const keyword = search.trim().toLocaleLowerCase("zh-CN");
+  return [...new Set(productTypes)].filter((value) => !keyword || value.toLocaleLowerCase("zh-CN").includes(keyword)).sort((left, right) => left.localeCompare(right, "zh-CN"));
+}
