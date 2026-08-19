@@ -309,6 +309,10 @@ function CustomerProfiles({ result, filter, bindings, templates, draft, onDraft,
   const shops = [...new Set(bindings.map((item) => item.shopId))];
   const commonFieldNames: Record<string, string> = { height: "身高", weight: "体重", sleeve_length: "袖长", chest: "胸围", waist: "腰围", hip: "臀围", shoulder_width: "肩宽", inseam: "裤内长", neck: "领围" };
   function fieldName(code: string) { return commonFieldNames[code] ?? (/^field_(\d+)$/.exec(code)?.[1] ? `量体字段 ${/^field_(\d+)$/.exec(code)?.[1]}` : code); }
+  function shopifyCustomerUrl(profile: MeasurementProfileAdminView) {
+    if (!profile.customerId) return null;
+    return `https://admin.shopify.com/store/${profile.shopId.replace(/\.myshopify\.com$/i, "")}/customers/${profile.customerId}`;
+  }
   function removeField(code: string) { if (!draft) return; const next = { ...draft.measurements }; delete next[code]; onDraft({ ...draft, measurements: next }); }
   useEffect(() => {
     if (!draft) return;
@@ -324,7 +328,8 @@ function CustomerProfiles({ result, filter, bindings, templates, draft, onDraft,
     <div className="customer-filter-result"><strong>{filterLabel}</strong><span>共 {result.total} 条</span>{filter !== "all" && <button className="link" onClick={() => onFilter("all")}>清除筛选</button>}</div>
     <div className="panel table-wrap"><table><thead><tr><th>归属</th><th>客户/设备</th><th>店铺</th><th>单位</th><th>字段</th><th>更新时间</th><th>过期时间</th><th>状态</th><th>操作</th></tr></thead><tbody>{result.items.map((profile) => {
       const expired = Boolean(profile.expiresAt && new Date(profile.expiresAt) <= new Date());
-      return <tr key={profile.id}><td><span className={`badge ${profile.ownerType === "customer" ? "published" : "draft"}`}>{profile.ownerType === "customer" ? "登录客户" : "匿名设备"}</span></td><td>{profile.customerId ? <><strong>{profile.customerName || "未获取姓名"}</strong><small>{profile.customerEmail || "未获取邮箱"}</small></> : <strong>{`Guest …${profile.id.slice(-8)}`}</strong>}</td><td>{profile.shopId}</td><td>{profile.unit}</td><td>{profile.fieldCount} 项</td><td>{new Date(profile.updatedAt).toLocaleString("zh-CN")}</td><td>{profile.expiresAt ? new Date(profile.expiresAt).toLocaleString("zh-CN") : "账号长期保存"}</td><td><span className={`badge ${expired ? "draft" : "published"}`}>{expired ? "已过期" : "有效"}</span></td><td><button className="link" onClick={() => onEdit(profile)}>编辑</button><button className="link danger-text" onClick={() => onDelete(profile)}>删除</button></td></tr>;
+      const customerUrl = shopifyCustomerUrl(profile);
+      return <tr key={profile.id}><td><span className={`badge ${profile.ownerType === "customer" ? "published" : "draft"}`}>{profile.ownerType === "customer" ? "登录客户" : "匿名设备"}</span></td><td>{profile.customerId ? <><strong>{profile.customerName || "未获取姓名"}</strong><small>{profile.customerEmail || "未获取邮箱"}</small></> : <strong>{`Guest …${profile.id.slice(-8)}`}</strong>}</td><td>{profile.shopId}</td><td>{profile.unit}</td><td>{profile.fieldCount} 项</td><td>{new Date(profile.updatedAt).toLocaleString("zh-CN")}</td><td>{profile.expiresAt ? new Date(profile.expiresAt).toLocaleString("zh-CN") : "账号长期保存"}</td><td><span className={`badge ${expired ? "draft" : "published"}`}>{expired ? "已过期" : "有效"}</span></td><td>{customerUrl && <a className="link" href={customerUrl} target="_top">查看 Shopify 客户</a>}<button className="link" onClick={() => onEdit(profile)}>编辑</button><button className="link danger-text" onClick={() => onDelete(profile)}>删除</button></td></tr>;
     })}</tbody></table>{!result.items.length && <div className="empty">{result.stats.total ? "当前筛选条件下暂无客户资料。" : "暂无已保存的量体资料。可先通过商品定制器保存一条测试资料。"}</div>}{result.total > 0 && <div className="pagination"><span>第 {result.page} / {result.totalPages} 页</span><span>每页 {result.pageSize} 条</span><button className="secondary" disabled={result.page <= 1} onClick={() => onPage(result.page - 1)}>上一页</button><button className="secondary" disabled={result.page >= result.totalPages} onClick={() => onPage(result.page + 1)}>下一页</button></div>}</div>
     <div className="notice success">登录客户和匿名设备资料均可编辑量体数值；匿名资料仍由 Cookie 身份关联，后台不可改变其归属。删除当前资料不影响历史订单快照。</div>
   </>;
