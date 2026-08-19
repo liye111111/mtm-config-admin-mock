@@ -26,6 +26,19 @@ export async function findSizeChartByCode(code: string, shopId: string) {
   return database().prepare("SELECT * FROM size_charts WHERE code=? AND shop_id=?").bind(code, shopId).first<SizeChartRow>();
 }
 
+export async function findPublishedSizeChartByProductType(shopId: string, normalizedProductType: string) {
+  await ensureDatabase();
+  return database().prepare(`SELECT c.id,c.code,c.name,c.status,v.id version_id,v.version,v.algorithm_code,v.algorithm_version,v.config_json
+    FROM product_type_size_chart_bindings b
+    JOIN size_charts c ON c.id=b.size_chart_id AND c.shop_id=b.shop_id
+    JOIN size_chart_versions v ON v.id=c.current_version_id AND v.status='published'
+    WHERE b.shop_id=? AND b.normalized_product_type=? AND c.status='active'`)
+    .bind(shopId, normalizedProductType).first<{
+      id: string; code: string; name: string; status: "active"; version_id: string; version: number;
+      algorithm_code: string; algorithm_version: number; config_json: string;
+    }>();
+}
+
 export async function createSizeChart(shopId: string, input: CreateSizeChartInput, configJson: string, algorithmCode: string) {
   await ensureDatabase();
   const id = crypto.randomUUID();
@@ -75,4 +88,3 @@ export async function deleteSizeChart(id: string, shopId: string) {
     database().prepare("DELETE FROM size_charts WHERE id=? AND shop_id=? AND current_version_id IS NULL").bind(id, shopId),
   ]);
 }
-

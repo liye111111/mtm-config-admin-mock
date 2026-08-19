@@ -28,13 +28,13 @@ export function parseMeasurementProfileQuery(value: unknown): MeasurementProfile
 export function parseSaveMeasurementProfile(value: unknown): SaveMeasurementProfileInput { return parseWithSchema(saveMeasurementProfileSchema, value); }
 export function parseClaimMeasurementProfile(value: unknown): ClaimMeasurementProfileInput { return parseWithSchema(claimMeasurementProfileSchema, value); }
 
-export const mockSizeRecommendationSchema = z.object({
+export const sizeRecommendationSchema = z.object({
   productId: requiredId("productId 必填"),
   availableSizes: z.array(z.string().trim().min(1).max(100)).min(1, "没有可推荐的尺码").max(100).transform((values) => [...new Set(values)]),
   measurements: measurementsSchema.refine((value) => Object.keys(value).length > 0, "量体数据不能为空"),
 });
-export type MockSizeRecommendationInput = z.infer<typeof mockSizeRecommendationSchema>;
-export function parseMockSizeRecommendation(value: unknown): MockSizeRecommendationInput { return parseWithSchema(mockSizeRecommendationSchema, value); }
+export type SizeRecommendationInput = z.infer<typeof sizeRecommendationSchema>;
+export function parseSizeRecommendation(value: unknown): SizeRecommendationInput { return parseWithSchema(sizeRecommendationSchema, value); }
 
 export const adminCustomerMeasurementProfileSchema = z.object({
   shopId: z.string().trim().regex(/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/, "shopId 格式无效"),

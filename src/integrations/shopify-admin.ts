@@ -65,6 +65,21 @@ export async function verifyShopifyVariant(shop: string, productId: string, vari
   return { variantId: String(variant.legacyResourceId), sku: variant.sku || "" };
 }
 
+export async function getShopifyProductType(shop: string, productId: string) {
+  const token = await accessToken(shop, undefined, true);
+  const gid = productId.startsWith("gid://") ? productId : `gid://shopify/Product/${productId}`;
+  const response = await fetch(`https://${shop}/admin/api/2026-07/graphql.json`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": token },
+    body: JSON.stringify({ query: `query ProductTypeForSizeRecommendation($id: ID!) { product(id: $id) { productType } }`, variables: { id: gid } }),
+  });
+  const payload = await response.json() as { data?: { product?: { productType: string } }; errors?: Array<{ message: string }> };
+  const error = payload.errors?.[0]?.message;
+  if (!response.ok || error) throw new AppError(error || "Shopify 商品分类查询失败", 502);
+  if (!payload.data?.product) throw new AppError("Shopify 商品不存在", 404);
+  return payload.data.product.productType.trim();
+}
+
 async function accessToken(shop: string, sessionToken?: string, allowClientCredentials = false) {
   if (env.SHOPIFY_ADMIN_ACCESS_TOKEN && (!env.SHOPIFY_STORE || env.SHOPIFY_STORE === shop)) return env.SHOPIFY_ADMIN_ACCESS_TOKEN;
   if (allowClientCredentials && env.SHOPIFY_AUTH_MODE === "client_credentials") return clientCredentialsAccessToken(shop);
