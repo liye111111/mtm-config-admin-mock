@@ -66,7 +66,7 @@ export async function verifyShopifyVariant(shop: string, productId: string, vari
 }
 
 export async function getShopifyProductType(shop: string, productId: string) {
-  const token = await accessToken(shop, undefined, true);
+  const token = await clientCredentialsAccessToken(shop);
   const gid = productId.startsWith("gid://") ? productId : `gid://shopify/Product/${productId}`;
   const response = await fetch(`https://${shop}/admin/api/2026-07/graphql.json`, {
     method: "POST",
