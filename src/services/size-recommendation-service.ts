@@ -1,6 +1,7 @@
 import type { SizeChartConfig, SizeChartInputAttribute } from "@/src/domain";
 import { getShopifyProductType } from "@/src/integrations/shopify-admin";
 import { normalizeProductType } from "@/src/repositories/product-type-size-chart-binding-repository";
+import * as products from "@/src/repositories/product-repository";
 import * as sizeCharts from "@/src/repositories/size-chart-repository";
 import type { SizeRecommendationInput } from "@/src/schemas/storefront";
 import { parseSizeChartConfig } from "@/src/schemas/size-chart";
@@ -64,7 +65,11 @@ function basisHints(basis: Basis[]) {
 }
 
 export async function recommendSize(shopId: string, input: SizeRecommendationInput) {
-  const productType = await getShopifyProductType(shopId, input.productId);
+  const binding = await products.findByLegacyProductId(shopId, input.productId);
+  const productTypeHint = input.productType.trim();
+  const cacheHit = Boolean(productTypeHint && binding?.product_type === productTypeHint);
+  const productType = cacheHit ? productTypeHint : await getShopifyProductType(shopId, input.productId);
+  if (binding && binding.product_type !== productType) await products.updateProductType(binding.id, shopId, productType);
   if (!productType) return result("product_type_missing", ["商品未设置 Shopify 自定义分类，无法定位尺码表。"]);
   const chart = await sizeCharts.findPublishedSizeChartByProductType(shopId, normalizeProductType(productType));
   if (!chart) return result("size_chart_unavailable", [`商品分类“${productType}”未绑定已启用且已发布的尺码表。`], { productType });
@@ -75,7 +80,7 @@ export async function recommendSize(shopId: string, input: SizeRecommendationInp
   if (!candidate) return result("no_rule_matched", [`已使用尺码表“${chart.name}”v${chart.version}，但没有规则匹配当前量体数据。`, `算法：${config.algorithm.code}@${config.algorithm.version}`], { productType, sizeChartCode: chart.code, sizeChartVersion: chart.version });
   const size = config.sizes.find((item) => item.code === candidate.sizeCode);
   if (!size?.label) return result("size_definition_missing", [`规则命中内部尺码编码“${candidate.sizeCode}”，但可推荐尺码中没有对应的展示名称。`], { productType, sizeChartCode: chart.code, sizeChartVersion: chart.version, matchedSizeCode: candidate.sizeCode }, null, candidate.basis);
-  const details = { productType, sizeChartCode: chart.code, sizeChartVersion: chart.version, algorithm: `${config.algorithm.code}@${config.algorithm.version}`, score: candidate.score, recommendedSizeCode: candidate.sizeCode };
+  const details = { productType, productTypeSource: cacheHit ? "cache" : "shopify_admin", sizeChartCode: chart.code, sizeChartVersion: chart.version, algorithm: `${config.algorithm.code}@${config.algorithm.version}`, score: candidate.score, recommendedSizeCode: candidate.sizeCode };
   if (!input.availableSizes.includes(size.label)) return result("recommended_size_unavailable", [`理论推荐尺码：${size.label}（内部编码 ${candidate.sizeCode}），但当前商品没有该尺码选项，未自动选中。`, ...basisHints(candidate.basis)], { ...details, theoreticalSize: size.label, theoreticalSizeCode: candidate.sizeCode }, null, candidate.basis);
   return result("recommended", [`推荐尺码：${size.label}（内部编码 ${candidate.sizeCode}）`, `尺码表：${chart.name} v${chart.version}`, ...basisHints(candidate.basis)], details, size.label, candidate.basis);
 }

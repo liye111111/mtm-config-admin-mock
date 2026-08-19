@@ -30,6 +30,7 @@ export function parseClaimMeasurementProfile(value: unknown): ClaimMeasurementPr
 
 export const sizeRecommendationSchema = z.object({
   productId: requiredId("productId 必填"),
+  productType: z.string().trim().max(255, "productType 过长"),
   availableSizes: z.array(z.string().trim().min(1).max(100)).min(1, "没有可推荐的尺码").max(100).transform((values) => [...new Set(values)]),
   measurements: measurementsSchema.refine((value) => Object.keys(value).length > 0, "量体数据不能为空"),
 });

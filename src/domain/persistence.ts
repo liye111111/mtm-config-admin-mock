@@ -53,6 +53,7 @@ export type ProductBindingRow = {
   product_image_alt: string | null;
   product_status: string;
   product_kind: string;
+  product_type: string | null;
   variant_count: number;
   online_store_url: string | null;
   shopify_admin_url: string | null;

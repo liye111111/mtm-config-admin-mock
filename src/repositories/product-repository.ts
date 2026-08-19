@@ -6,6 +6,11 @@ import { database, ensureDatabase } from "./database";
 export async function listProductBindings(shopId: string) { await ensureDatabase(); return (await database().prepare("SELECT * FROM product_bindings WHERE shop_id=? ORDER BY updated_at DESC").bind(shopId).all<ProductBindingRow>()).results; }
 export async function findProductBinding(id: string, shopId: string) { await ensureDatabase(); return database().prepare("SELECT * FROM product_bindings WHERE id=? AND shop_id=?").bind(id, shopId).first<ProductBindingRow>(); }
 export async function findByProduct(shopId: string, gid: string) { await ensureDatabase(); return database().prepare("SELECT * FROM product_bindings WHERE shop_id=? AND shopify_product_gid=?").bind(shopId, gid).first<ProductBindingRow>(); }
+export async function findByLegacyProductId(shopId: string, productId: string) { await ensureDatabase(); return database().prepare("SELECT * FROM product_bindings WHERE shop_id=? AND shopify_product_id=?").bind(shopId, productId).first<ProductBindingRow>(); }
+export async function updateProductType(id: string, shopId: string, productType: string) {
+  await ensureDatabase();
+  await database().prepare("UPDATE product_bindings SET product_type=?,updated_at=? WHERE id=? AND shop_id=?").bind(productType, new Date().toISOString(), id, shopId).run();
+}
 export async function createProductBinding(input: SaveProductBindingInput, product: ShopifyProductSnapshot) {
   await ensureDatabase(); const id = crypto.randomUUID(), now = new Date().toISOString();
   await database().prepare("INSERT INTO product_bindings (id,shop_id,shopify_product_gid,shopify_product_id,product_title,product_handle,product_image_url,product_image_alt,product_status,product_kind,variant_count,online_store_url,shopify_admin_url,template_id,published_version,enabled,sync_status,sync_error,shopify_updated_at,last_synced_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
