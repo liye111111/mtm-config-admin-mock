@@ -7,7 +7,7 @@
 - 任务类型：跨管理端、Domain、Schema、Service、Repository、API 和 D1 的后台能力建设
 - 前置基线：`doc/tasks/domain-model-rework.md`
 - Domain 说明：`doc/core-domain-and-relationships.md`
-- 核心商品模型：普通 Shopify 单品/套装 Product/Variant + D1 完整定制实例 + 不可变订单快照
+- 核心商品模型：普通 Shopify 单品/套装 Product/Variant + D1 不可变定制实例 + Shopify 订单行属性
 
 本文记录新版 Domain 模型对应的后台信息架构、页面范围、实施阶段和验收标准。各项的当前进度以下方“当前实施进度”为准，原始页面设计继续作为目标和验收参考。
 
@@ -15,7 +15,9 @@
 
 - 已明确不开发 ERP／MTM 系统对接；
 - 不开发 ERP 订单推送、确认接收、同步状态、失败重试和 ERP 凭证签名；
-- 订单定制快照和生产配置展示仍可作为应用内部能力实现，但不包含向外部 ERP／MTM 系统传输。
+- 已明确不开发独立的“订单定制”后台列表、详情和结构化订单快照；
+- 日常运营在 Shopify 订单详情页查看可读定制属性；D1 `customization_instances` 继续保存不可变定制快照；
+- `orders/create` Webhook 继续保留，用于 HMAC 验签、幂等、原始 Payload 留存、量体资料回写和定制实例 `ordered` 状态更新。
 
 ### 1.2 当前实施进度
 
@@ -33,7 +35,7 @@
 | 商品绑定 | 已完成 | 已完成 Shopify 选品、批量创建绑定、启停、指定版本、同步、Metafield 写入和 Storefront 预览 |
 | 客户量体 | 已完成基础管理 | 已完成分页、筛选、详情、新建、编辑和删除；尚无角色权限和访问审计 |
 | 定制实例 | 后端写入已完成，管理页未开发 | Storefront 可创建不可变快照；缺少 Admin 列表、详情和状态筛选 |
-| 订单定制 | Webhook 基础链路已完成，管理页未开发 | 已完成 `orders/create` HMAC、幂等、原始 Payload 快照、量体回写和定制实例 `ordered` 状态；缺少结构化订单快照、列表和详情 |
+| 订单定制后台 | 明确不做 | 使用 Shopify 订单详情页查看可读定制属性；保留 `orders/create` Webhook 和 `customization_instances` 追溯链路 |
 | 工作台 | 未开发 | 尚无统计 API 和页面 |
 | 系统设置、角色和审计 | 未开发 | 已有 Shopify Session Token 鉴权，但尚无店铺员工角色区分、操作审计和状态页 |
 | ERP／MTM 对接 | 明确不做 | 已从当前交付范围、阶段计划和完成标准中移除 |
@@ -66,8 +68,8 @@
 2. 将套装编辑从自由选择单品改为固定逻辑组件及子模板映射。
 3. 支持模板、步骤、选项、关系、尺寸块和尺寸字段的完整运营配置。
 4. 支持商品绑定、发布校验和不可变版本查询。
-5. 提供量体档案、定制实例和订单快照的受控查询能力。
-6. 提供应用内部的订单定制快照查询和失败诊断；不对接 ERP／MTM。
+5. 提供量体档案和定制实例的受控查询能力。
+6. 在 Shopify 订单详情页展示完整可读定制属性，应用后台不重复建设订单定制管理页面。
 7. 保持 Shopify 商品、Variant、价格、销售 SKU 和库存由 Shopify 管理。
 8. 将管理端拆分为可维护的页面和组件，避免单文件继续膨胀。
 9. 延续已调整的 Shopify Admin 风格和顶部应用导航。
@@ -78,6 +80,8 @@
 - Shopify Fixed Bundle 或 Mix-and-match Bundle 管理；
 - 定制加价和 Checkout 价格覆盖；
 - 在后台修改已经下单的不可变订单快照；
+- 独立的订单定制列表、详情、结构化快照和异常筛选页面；
+- 生产配置导出和生产单打印；
 - 未完成身份认证时对生产开放客户量体数据；
 - ERP／MTM 系统对接，包括推送、确认、同步状态和重试；
 - 完整 CRM 或门店系统实现；
@@ -97,7 +101,6 @@
 商品绑定
 客户量体
 定制实例
-订单定制
 设置
 ```
 
@@ -126,9 +129,8 @@
 - 已绑定并启用定制的商品数；
 - 今日定制实例数；
 - 已校验、已加购和已下单实例数；
-- 订单快照成功和失败数量；
+- 订单 Webhook 成功和失败数量；
 - 最近模板发布记录；
-- 最近定制订单；
 - 配置解析、Webhook 和 Shopify API 异常摘要。
 
 #### 一期边界
@@ -411,41 +413,24 @@ ordered
 
 `added_to_cart` 和 `ordered` 状态的实例默认只读。
 
-### 6.6 订单定制
+### 6.6 订单定制（取消独立页面）
 
-#### 列表
+不再建设应用内的订单定制列表和详情页。运营人员直接使用 Shopify Admin 订单详情页查看订单商品行中的可读定制属性。
 
-展示：
+订单商品行继续保留：
 
-- Shopify 订单号和 Line Item；
-- 配置 ID；
-- 商品与 Variant；
-- 客户；
-- 模板版本；
-- 快照状态；
-- 下单时间。
+- 面向人员阅读的逐项定制属性；
+- `_mtm_customization_id`；
+- `_mtm_template`；
+- 必要的 Raw 内部字段。
 
-异常筛选包括：
+应用侧继续保留：
 
-- 缺少配置 ID；
-- 找不到定制实例；
-- 快照创建失败；
-- 逻辑组件配置不完整；
-- Webhook 处理失败；
+- `customization_instances`：保存下单前的选项、逻辑组件、量体和模板版本快照；
+- `orders/create` Webhook：验证 HMAC 和事件幂等性，保存原始 Payload，回写量体资料，并将定制实例标记为 `ordered`；
+- `_mtm_customization_id` 作为 Shopify Line Item 与 D1 定制实例的追溯关联键。
 
-#### 详情
-
-只读展示：
-
-- Shopify Order/Line Item；
-- 商品、Variant 和成交信息；
-- 模板编码和版本；
-- 各逻辑组件的选项和尺寸；
-- 下单时展示名称；
-- 快照创建时间；
-- 原始快照 JSON。
-
-后续可在应用内提供导出生产配置和打印生产单，但不包含 ERP／MTM 系统推送。导出和打印只能使用同一不可变快照，不能修改订单配置。
+不开发独立的 `order_customization_snapshots`、订单定制异常工作台、生产配置导出和生产单打印。
 
 ### 6.7 系统设置
 
@@ -489,7 +474,7 @@ ordered
 
 #### 审计日志
 
-记录模板修改、版本发布、商品绑定、量体档案访问和订单快照查看等操作。日志不保存完整量体数据或密钥。
+记录模板修改、版本发布、商品绑定和量体档案访问等操作。日志不保存完整量体数据或密钥。
 
 ## 7. 页面与 Domain/API 映射
 
@@ -501,7 +486,7 @@ ordered
 | 商品绑定 | `ProductTemplateBinding` | `/api/products/**`，后续建议更名或兼容为 bindings 资源 |
 | 客户量体 | `MeasurementProfile` | 已实现 `/api/measurement-profiles/**` |
 | 定制实例 | `CustomizationInstance` | 计划新增管理端查询 API |
-| 订单定制 | `OrderCustomizationSnapshot` | 计划新增管理端查询 API；不包含 ERP 重试 |
+| Shopify 订单查看 | Shopify Order + Line Item Properties | 不新增管理 API；从 Shopify Admin 订单详情查看 |
 | 系统设置 | Shop、Webhook、Role、Audit View | 按安全边界拆分，禁止单一万能设置接口 |
 
 所有管理 API 必须经过可靠的 Shopify Admin 身份认证和权限检查。Route 只负责 HTTP 边界，业务规则进入 Service，SQL 进入 Repository。
@@ -515,7 +500,9 @@ ordered
 - `product_bindings.enabled`；
 - `measurement_profiles`；
 - `customization_instances`；
-- `order_customization_snapshots`（尚未实现；当前只有 `order_webhook_snapshots` 原始 Webhook Payload 快照）。
+- `order_webhook_snapshots`（只保存原始 Webhook Payload 和处理状态）。
+
+已决定不新增 `order_customization_snapshots`；订单定制业务数据使用 Shopify Line Item Properties 和已有 `customization_instances` 追溯。
 
 后续根据设置和审计范围评估新增：
 
@@ -572,8 +559,8 @@ doc/shopify-integration-api.md
 
 1. 量体档案列表、分页、筛选和详情编辑：已完成。
 2. 定制实例列表和详情：未开发。
-3. 订单定制列表和不可变快照详情：未开发。
-4. 定制实例和订单异常状态筛选：未开发。
+3. 订单定制列表和不可变快照详情：已取消，使用 Shopify Admin 订单详情。
+4. 定制实例异常状态筛选：未开发；订单异常页：已取消。
 5. Shopify Session Token 身份认证：已完成；店铺员工角色权限和访问审计：未开发。
 
 ### 阶段四：系统与生产运维
@@ -581,7 +568,7 @@ doc/shopify-integration-api.md
 1. 建立工作台基础统计。
 2. 建立 Shopify 连接和 Webhook 状态页面。
 3. 建立权限与审计日志。
-4. 可选增加应用内部的生产配置导出和打印；不对接 ERP／MTM。
+4. 不开发生产配置导出和打印，不对接 ERP／MTM。
 
 ## 11. P0/P1/P2 优先级
 
@@ -596,13 +583,12 @@ doc/shopify-integration-api.md
 - [ ] 独立发布检查结果面板和版本差异；
 - [x] 商品绑定；
 - [ ] 定制实例查询；
-- [ ] 结构化订单快照查询。
+- [x] 订单定制查看改用 Shopify Admin 订单详情，取消结构化订单快照页面。
 
 ### P1：客户与生产能力
 
 - [x] 客户量体档案基础管理；
-- [ ] 定制实例与订单定制快照查询；
-- [ ] 可选的应用内生产配置导出；
+- [ ] 定制实例查询；
 - [ ] 审计日志。
 
 ### P2：运营增强
@@ -647,7 +633,8 @@ npm test
 - 商品绑定启停和版本选择；
 - 管理端敏感接口鉴权及权限拒绝；
 - 列表分页、筛选和空状态；
-- 订单快照保持不可变；
+- 定制实例快照保持不可变；
+- Shopify 订单行可读属性和 `_mtm_customization_id` 完整；
 
 ### 13.2 页面验证
 
@@ -658,8 +645,8 @@ npm test
 - 组合模板只能配置固定逻辑组件；
 - 商品绑定可以启停并预览 Storefront 配置；
 - 客户量体列表不泄露不必要的完整尺寸；
-- 定制实例和订单快照详情可以完整还原逻辑组件；
-- 已下单快照页面没有编辑入口；
+- 定制实例详情可以完整还原逻辑组件；
+- Shopify Admin 订单详情可完整阅读定制属性；
 - 空数据、加载、成功、校验失败和服务异常状态均有明确反馈。
 
 ### 13.3 人工端到端验证
@@ -672,9 +659,9 @@ npm test
 6. 在 Storefront 分别完成两件套和三件套定制。
 7. 确认每套只加入一个普通套装 Variant 和一个购物车行。
 8. 确认 Line Item Properties 只保存摘要、配置 ID 和模板版本。
-9. 下单后确认后台生成不可变订单快照。
-10. 确认后台订单快照能按逻辑组件还原上衣、西裤和马甲配置；不验证 ERP／MTM 对接。
-11. 修改模板和量体档案，确认历史订单快照保持不变。
+9. 下单后确认 Shopify Admin 订单详情展示完整可读定制属性和内部追溯字段。
+10. 确认 `orders/create` Webhook 将定制实例标记为 `ordered`，并可通过 `_mtm_customization_id` 定位 D1 定制实例。
+11. 修改模板和量体档案，确认已有定制实例快照和 Shopify 订单行属性保持不变。
 
 ## 14. 风险与控制
 
@@ -696,11 +683,11 @@ npm test
 
 控制：鉴权、角色权限、对象级校验、字段最小化、日志脱敏和审计。安全能力完成前不开放生产页面。
 
-### 14.4 快照可变风险
+### 14.4 定制数据追溯风险
 
-风险：运营人员从订单页面修改配置，导致生产数据与下单内容不一致。
+风险：Shopify 订单行只保存可读属性和内部引用，若 `_mtm_customization_id` 缺失或 D1 定制实例被误删，将无法追溯完整快照。
 
-控制：订单快照只读；重试和导出只使用原始快照；任何人工纠错采用单独审计流程。
+控制：`customization_instances` 保留不可变选项、组件、量体和模板版本快照；Shopify Line Item 必须保留 `_mtm_customization_id`；`orders/create` Webhook 保存原始 Payload 用于排查。
 
 ### 14.5 查询性能风险
 
@@ -735,8 +722,8 @@ npm test
 - 模板步骤、选项、关系、尺寸块和尺寸字段可以完整管理；
 - 发布前结构化校验和不可变版本可用；
 - 商品绑定支持 `enabled` 和指定发布版本；
-- 客户量体、定制实例和订单快照具备符合权限要求的列表及详情；
-- 已下单快照只读且可以完整还原逻辑组件；
+- 客户量体和定制实例具备符合权限要求的列表及详情；
+- Shopify Admin 订单详情能阅读完整定制属性，并可通过 `_mtm_customization_id` 追溯 D1 定制实例；
 - Shopify 商品价格、SKU 和库存没有进入定制后台编辑范围；
 - 管理端在 Shopify Admin 嵌入场景中风格一致且无双侧栏；
 - Drizzle Schema、迁移、Repository、Service、API 和页面契约一致；
