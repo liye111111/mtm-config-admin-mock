@@ -287,8 +287,11 @@ td small{display:block;color:var(--muted);margin-top:3px}
 .algorithm-card.selected{border-color:#303030;box-shadow:0 0 0 1px #303030;background:#fafafa}
 .algorithm-card strong,.algorithm-card small,.algorithm-card span{display:block}
 .algorithm-card strong{font-size:14px}
+.algorithm-card strong em{float:right;padding:2px 6px;border-radius:999px;background:#e3e3e3;color:var(--muted);font-size:10px;font-style:normal;font-weight:600}
 .algorithm-card small{margin:3px 0 10px;color:#005bd3;font:11px ui-monospace,SFMono-Regular,Menlo,monospace}
 .algorithm-card span{color:var(--muted);font-size:12px;line-height:1.55}
+.algorithm-card:disabled{opacity:.58;cursor:not-allowed;background:var(--surface-secondary)}
+.algorithm-card:disabled:hover{border-color:var(--line)}
 .algorithm-explanation{margin-top:12px;padding:14px 16px;border:1px solid #b7dfc8;border-radius:10px;background:var(--green-bg)}
 .algorithm-explanation strong{font-size:13px;color:#186a45}
 .algorithm-explanation ol{margin:9px 0 0;padding-left:20px;color:#315c48;font-size:12px;line-height:1.75}
@@ -302,6 +305,9 @@ td small{display:block;color:var(--muted);margin-top:3px}
 .size-definition-table{display:grid;gap:8px}
 .size-definition-row{display:grid;grid-template-columns:32px 1fr 1fr auto;gap:8px;align-items:center}
 .size-definition-row>span{display:grid;place-items:center;width:28px;height:28px;border-radius:7px;background:var(--surface-secondary);font-size:11px;font-weight:700}
+.size-definition-head{padding:0 0 2px;color:var(--muted);font-size:11px;font-weight:600}
+.size-definition-head>span{display:block;width:auto;height:auto;padding:0 10px;border-radius:0;background:transparent;font-size:11px;font-weight:600;text-align:left}
+.size-definition-head>span:first-child{padding:0;text-align:center}
 .matrix-wrap{overflow:auto}
 .matrix-row{display:grid;grid-template-columns:42px repeat(2,minmax(170px,1fr)) minmax(140px,.7fr) auto;gap:8px;align-items:center;min-width:720px;margin-top:8px}
 .matrix-row.matrix-head{margin-top:0;color:var(--muted);font-size:11px;font-weight:600}
@@ -313,7 +319,6 @@ td small{display:block;color:var(--muted);margin-top:3px}
 .lookup-row>span{text-align:center;color:var(--muted);font-size:12px}
 .badge.disabled{background:#f1f1f1;color:#616161}
 .badge.active{background:var(--green-bg);color:#186a45}
-.version-badge{font-size:10px;color:var(--muted)}
 
 /* Shopify Admin / Polaris-style checkbox */
 input[type="checkbox"]{
