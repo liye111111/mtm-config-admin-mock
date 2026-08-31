@@ -2,6 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { useState, type ReactNode } from "react";
 import { DEFAULT_EMBROIDERY_CONFIG, type CustomizationStep, type CustomizationOption, type OptionGroup, type DisplayStyle, type TextInputConfig } from "@/src/domain";
+import { ensureComponentsStep } from "@/src/domain/composite-flow";
 import type { TemplateView } from "./types";
 import { ImageField, ImagePickerPendingContext } from "./image-field";
 
@@ -73,6 +74,11 @@ export function TemplateSteps({ draft, disabled, onDraft, onImagePending }: {
     <div className="section-title"><h4>步骤 → 选项组 → 选项</h4><button type="button" className="secondary" onClick={addStep}>＋ 添加步骤</button></div>
     <p className="section-help">消费者一页一个步骤。步骤内可配置多个独立单选组；样式属于选项组，标签仅展示、不影响价格。</p>
     <p className="section-help">图片通过 Shopify 原生素材选择器管理。步骤默认大图可不填；图文／图标组的启用选项发布时必须有展示素材。</p>
+    {draft.config.templateType === "composite" && <div className="section-help">
+      <p>“组合/套装”步骤用于按顺序展开子模板的定制选项；可在其前后添加独立选项、量体尺寸和配置确认步骤。组合中的量体使用本模板的“量体定义”，不重复使用子模板的量体步骤。</p>
+      {!steps.some((step) => step.type === "components" && step.enabled) && <><p role="alert">缺少启用的组合入口，不影响继续编辑独立步骤；发布前请补齐。</p><button type="button" className="secondary" onClick={() => update((next) => ensureComponentsStep(next.config))}>补齐组合步骤</button></>}
+      {steps.filter((step) => step.type === "components" && step.enabled).length > 1 && <p role="alert">有多个启用的组合入口，请只保留一个，避免重复展开子模板；其他类型步骤可以保留。</p>}
+    </div>}
     {!steps.length && <div className="empty">暂无步骤，请添加。</div>}
     {steps.map((step, stepIndex) => <section className="mtm-step-card" key={step.id}>
       <div className="mtm-editor-heading"><strong>步骤 {stepIndex + 1} · {step.title}</strong><div className="actions"><OrderButtons index={stepIndex} count={steps.length} onMove={(delta) => update((next) => move(next.config.steps, step.id, delta))}/><button type="button" className="link danger-text" onClick={() => { if (confirm(`删除步骤“${step.title}”及其选项组？`)) update((next) => { next.config.steps = next.config.steps.filter((item) => item.id !== step.id); }); }}>删除步骤</button></div></div>

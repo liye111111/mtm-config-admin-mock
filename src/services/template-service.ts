@@ -28,7 +28,8 @@ async function validateTemplateConfig(config: TemplateConfig) {
   if (!config.components.length) throw new AppError("组合模板至少需要一个固定逻辑组件");
   ensureUnique(config.components.map((component) => component.code), "逻辑组件");
   const enabledComponentsSteps = config.steps.filter((step) => step.enabled && step.type === "components");
-  if (enabledComponentsSteps.length !== 1) throw new AppError("组合模板必须且只能包含一个启用的组合/套装步骤");
+  if (enabledComponentsSteps.length === 0) throw new AppError("缺少组合入口：请在定制步骤中点击“补齐组合步骤”，或添加并启用一个“组合/套装”类型步骤。量体、独立选项和配置确认步骤可以同时保留。");
+  if (enabledComponentsSteps.length > 1) throw new AppError("组合入口重复：请只保留一个启用的“组合/套装”类型步骤；其他独立步骤不受此限制。");
   for (const component of config.components) {
     if (!component.childTemplateId) throw new AppError(`${component.name}未绑定子定制模板`);
     const child = await templates.findPublishedTemplate(component.childTemplateId);

@@ -7,6 +7,7 @@ import { apiJson, isAuthorizationError, jsonRequest } from "./admin/api";
 import { AdminShell, type AdminView } from "./admin/app-shell";
 import { MeasurementAttributes } from "./admin/measurement-attributes";
 import { SizeCharts } from "./admin/size-charts";
+import { ensureComponentsStep } from "@/src/domain/composite-flow";
 import { TemplateSteps } from "./admin/template-steps";
 import type { CustomerMeasurementProfileDetail, MeasurementAttributeDraft, MeasurementAttributeView, MeasurementProfileAdminView, MeasurementProfileFilter, MeasurementProfilePage, ProductBindingView, ShopifyProductSelection, TemplateCategoryView, TemplateTab, TemplateVersionView, TemplateView } from "./admin/types";
 import { isShopifyEmbedded, selectShopifyProducts } from "./admin/shopify";
@@ -134,7 +135,7 @@ export function ConfigAdmin() {
     await run(async () => { await apiJson(`/api/templates/${draft.id}`, { method: "DELETE" }); setSelected(""); await Promise.all([loadTemplates(), loadBindings()]); }, "模板已删除");
   }
 
-  function setTemplateType(type: TemplateType) { updateDraft((next) => { next.config.templateType = type; next.category = type === "composite" ? "suit" : next.category === "suit" ? "jacket" : next.category; if (type === "single") next.config.components = []; }); if (type === "single" && tab === "components") setTab("base"); }
+  function setTemplateType(type: TemplateType) { updateDraft((next) => { next.config.templateType = type; next.category = type === "composite" ? "suit" : next.category === "suit" ? "jacket" : next.category; if (type === "composite") ensureComponentsStep(next.config); if (type === "single") { next.config.components = []; next.config.steps = next.config.steps.filter((step) => step.type !== "components"); } }); if (type === "single" && tab === "components") setTab("base"); }
 
   function addComponent() { updateDraft((next) => { const existingCodes = new Set(next.config.components.map((component) => component.code)); let sequence = next.config.components.length + 1; while (existingCodes.has(`component_${sequence}`)) sequence += 1; const sortOrder = next.config.components.reduce((maximum, component) => Math.max(maximum, component.sortOrder), -1) + 1; next.config.components.push({ id: crypto.randomUUID(), code: `component_${sequence}`, name: "新逻辑组件", category: "jacket", childTemplateId: "", customizationEnabled: true, required: true, sortOrder }); }); }
   function updateComponent(index: number, key: keyof GarmentComponentDefinition, value: string | boolean | number) { updateDraft((next) => { (next.config.components[index] as unknown as Record<string, unknown>)[key] = value; }); }
