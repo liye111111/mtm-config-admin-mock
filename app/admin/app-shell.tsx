@@ -14,7 +14,7 @@ export function AdminShell({ view, onNavigate, children }: { view: AdminView; on
         <button className={view === "products" ? "active" : ""} onClick={() => onNavigate("products")}>商品绑定</button>
         <button className={view === "customers" ? "active" : ""} onClick={() => onNavigate("customers")}>客户资料</button>
       </nav>
-      <span className="env">Schema v2</span>
+      <span className="env">Schema v3</span>
     </header>
     <main className="main"><div className="content">{children}</div></main>
   </div>;

@@ -3,10 +3,10 @@ import { TEMPLATE_SCHEMA_VERSION, type TemplateConfig, type TemplateRow, type Te
 import { database, ensureDatabase } from "./database";
 
 const templateSelect="SELECT t.*,c.name category_label FROM templates t LEFT JOIN template_categories c ON c.code=t.category";
-export async function listTemplates() { await ensureDatabase(); return (await database().prepare(`${templateSelect} ORDER BY t.updated_at DESC`).all<TemplateRow>()).results; }
-export async function findTemplate(id: string) { await ensureDatabase(); return database().prepare(`${templateSelect} WHERE t.id=?`).bind(id).first<TemplateRow>(); }
-export async function findPublishedTemplate(id: string) { await ensureDatabase(); return database().prepare(`${templateSelect} WHERE t.id=? AND t.status='published'`).bind(id).first<TemplateRow>(); }
-export async function findTemplateVersion(id: string, version: number) { await ensureDatabase(); return database().prepare("SELECT id,template_id,version,schema_version,config_json,published_at FROM template_versions WHERE template_id=? AND version=?").bind(id, version).first<TemplateVersionRow>(); }
+export async function listTemplates() { await ensureDatabase(); return (await database().prepare(`${templateSelect} WHERE t.schema_version=? ORDER BY t.updated_at DESC`).bind(TEMPLATE_SCHEMA_VERSION).all<TemplateRow>()).results; }
+export async function findTemplate(id: string) { await ensureDatabase(); return database().prepare(`${templateSelect} WHERE t.id=? AND t.schema_version=?`).bind(id, TEMPLATE_SCHEMA_VERSION).first<TemplateRow>(); }
+export async function findPublishedTemplate(id: string) { await ensureDatabase(); return database().prepare(`${templateSelect} WHERE t.id=? AND t.status='published' AND t.schema_version=?`).bind(id, TEMPLATE_SCHEMA_VERSION).first<TemplateRow>(); }
+export async function findTemplateVersion(id: string, version: number) { await ensureDatabase(); return database().prepare("SELECT id,template_id,version,schema_version,config_json,published_at FROM template_versions WHERE template_id=? AND version=? AND schema_version=?").bind(id, version, TEMPLATE_SCHEMA_VERSION).first<TemplateVersionRow>(); }
 export async function findPublishedTemplateForProduct(shopId: string, productId: string) {
   await ensureDatabase();
   return database().prepare(`SELECT t.id,t.code,t.name,t.category,t.status,
@@ -14,8 +14,9 @@ export async function findPublishedTemplateForProduct(shopId: string, productId:
     COALESCE(tv.config_json,t.config_json) config_json,t.created_at,t.updated_at
     FROM templates t JOIN product_bindings p ON p.template_id=t.id
     LEFT JOIN template_versions tv ON tv.template_id=t.id AND tv.version=p.published_version
-    WHERE p.shop_id=? AND p.shopify_product_id=? AND p.enabled=1 AND t.status='published'`)
-    .bind(shopId, productId).first<TemplateRow>();
+    WHERE p.shop_id=? AND p.shopify_product_id=? AND p.enabled=1 AND t.status='published' AND COALESCE(tv.schema_version,t.schema_version)=?
+    AND (p.published_version IS NULL OR tv.id IS NOT NULL)`)
+    .bind(shopId, productId, TEMPLATE_SCHEMA_VERSION).first<TemplateRow>();
 }
 export async function createTemplate(input: { name: string; category: string; config: TemplateConfig }) {
   await ensureDatabase(); const id = crypto.randomUUID(), now = new Date().toISOString(), code = `template_${Date.now()}`;
@@ -24,13 +25,13 @@ export async function createTemplate(input: { name: string; category: string; co
 }
 export async function updateTemplate(id: string, input: SaveTemplateInput) {
   await ensureDatabase();
-  await database().prepare("UPDATE templates SET code=?,name=?,category=?,status='draft',schema_version=?,config_json=?,updated_at=? WHERE id=?").bind(input.code, input.name, input.category, TEMPLATE_SCHEMA_VERSION, JSON.stringify(input.config), new Date().toISOString(), id).run();
+  await database().prepare("UPDATE templates SET code=?,name=?,category=?,status='draft',schema_version=?,config_json=?,updated_at=? WHERE id=? AND schema_version=?").bind(input.code, input.name, input.category, TEMPLATE_SCHEMA_VERSION, JSON.stringify(input.config), new Date().toISOString(), id, TEMPLATE_SCHEMA_VERSION).run();
   return findTemplate(id);
 }
 export async function publishTemplate(id: string, input: SaveTemplateInput, current: TemplateRow) {
   const version = current.version + 1, now = new Date().toISOString(), json = JSON.stringify(input.config), db = database();
   await db.batch([
-    db.prepare("UPDATE templates SET code=?,name=?,category=?,status='published',version=?,schema_version=?,config_json=?,updated_at=? WHERE id=?").bind(input.code, input.name, input.category, version, TEMPLATE_SCHEMA_VERSION, json, now, id),
+    db.prepare("UPDATE templates SET code=?,name=?,category=?,status='published',version=?,schema_version=?,config_json=?,updated_at=? WHERE id=? AND schema_version=?").bind(input.code, input.name, input.category, version, TEMPLATE_SCHEMA_VERSION, json, now, id, TEMPLATE_SCHEMA_VERSION),
     db.prepare("INSERT INTO template_versions (id,template_id,version,schema_version,config_json,published_at) VALUES (?,?,?,?,?,?)").bind(`${id}-v${version}`, id, version, TEMPLATE_SCHEMA_VERSION, json, now),
   ]);
   return (await findTemplate(id))!;
@@ -38,4 +39,4 @@ export async function publishTemplate(id: string, input: SaveTemplateInput, curr
 export async function deleteTemplate(id: string) {
   const db = database(); await db.batch([db.prepare("DELETE FROM product_bindings WHERE template_id=?").bind(id), db.prepare("DELETE FROM template_versions WHERE template_id=?").bind(id), db.prepare("DELETE FROM templates WHERE id=?").bind(id)]);
 }
-export async function listTemplateVersions(id: string) { await ensureDatabase(); return (await database().prepare("SELECT id,template_id,version,schema_version,config_json,published_at FROM template_versions WHERE template_id=? ORDER BY version DESC").bind(id).all<TemplateVersionRow>()).results; }
+export async function listTemplateVersions(id: string) { await ensureDatabase(); return (await database().prepare("SELECT id,template_id,version,schema_version,config_json,published_at FROM template_versions WHERE template_id=? AND schema_version=? ORDER BY version DESC").bind(id, TEMPLATE_SCHEMA_VERSION).all<TemplateVersionRow>()).results; }

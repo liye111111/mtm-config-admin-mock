@@ -1,4 +1,5 @@
 import { garmentCategoryLabels, type TemplateConfig } from "@/src/domain";
+import { ensureUnique, validateStepStructure } from "@/src/domain/template-rules";
 import { templateView } from "@/src/domain/models";
 import { parseStoredTemplateConfig } from "@/src/schemas/template";
 import type { SaveTemplateInput } from "@/src/schemas/template";
@@ -6,40 +7,9 @@ import { AppError, NotFoundError } from "@/src/shared/errors";
 import * as templates from "@/src/repositories/template-repository";
 import * as categories from "@/src/repositories/template-category-repository";
 
-function ensureUnique(codes: string[], label: string) {
-  const seen = new Set<string>();
-  for (const code of codes) {
-    if (seen.has(code)) throw new AppError(`${label}编码重复：${code}`);
-    seen.add(code);
-  }
-}
-
 async function validateTemplateConfig(config: TemplateConfig) {
   if (!config.steps.length) throw new AppError("至少需要一个定制步骤");
-  ensureUnique(config.steps.map((step) => step.code), "步骤");
-  for (const step of config.steps) {
-    ensureUnique(step.options.map((option) => option.code), `${step.title}选项`);
-    const selectedDefaults = step.options.filter((option) => option.enabled && option.defaultSelected);
-    if (selectedDefaults.length > 1 && step.type === "options") throw new AppError(`${step.title}只能设置一个默认选项`);
-    const isTextInput = step.type === "options" && step.displayType === "text_input";
-    const isEmbroidery = step.type === "embroidery";
-    if (isTextInput) {
-      if (!step.textInput) throw new AppError(`${step.title}缺少文本输入规则`);
-      if (step.options.length) throw new AppError(`${step.title}是文本输入步骤，不能包含候选选项`);
-      if (step.textInput.minLength > step.textInput.maxLength) throw new AppError(`${step.title}的最小字符数不能大于最大字符数`);
-    } else if (isEmbroidery) {
-      if (!step.textInput) throw new AppError(`${step.title}缺少刺绣文字规则`);
-      if (!step.embroidery) throw new AppError(`${step.title}缺少刺绣位置、字体或颜色字典`);
-      if (step.options.length) throw new AppError(`${step.title}是刺绣步骤，不能包含普通候选选项`);
-      if (step.textInput.minLength > step.textInput.maxLength) throw new AppError(`${step.title}的最小字符数不能大于最大字符数`);
-      for (const [label, choices] of [["位置", step.embroidery.positions], ["字体", step.embroidery.fonts], ["颜色", step.embroidery.colors]] as const) {
-        ensureUnique(choices.map((choice) => choice.code), `${step.title}${label}`);
-      }
-    } else {
-      if (step.textInput) throw new AppError(`${step.title}不是文本输入步骤，不能配置文本输入规则`);
-      if (step.embroidery) throw new AppError(`${step.title}不是刺绣步骤，不能配置刺绣字典`);
-    }
-  }
+  validateStepStructure(config, true);
   ensureUnique(config.measurementBlocks.map((block) => block.code), "尺寸块");
   for (const block of config.measurementBlocks) {
     ensureUnique(block.fields.map((field) => field.attributeId), `${block.name}量体属性`);
@@ -70,7 +40,8 @@ async function validateTemplateConfig(config: TemplateConfig) {
 }
 
 async function validateCategories(category: string, config: TemplateConfig) {
-  const referenced = new Set([category, ...config.components.map((item)=>item.category), ...config.steps.flatMap((step)=>step.options.flatMap((option)=>option.applicableCategories)), ...config.measurementBlocks.flatMap((block)=>block.applicableCategories), ...config.dimensionBlocks.flatMap((block)=>block.applicableCategories)]);
+  validateStepStructure(config);
+  const referenced = new Set([category, ...config.components.map((item)=>item.category), ...config.steps.flatMap((step)=>step.optionGroups.flatMap((group)=>group.options.flatMap((option)=>option.applicableCategories))), ...config.measurementBlocks.flatMap((block)=>block.applicableCategories), ...config.dimensionBlocks.flatMap((block)=>block.applicableCategories)]);
   for (const code of referenced) if (!await categories.findCategoryByCode(code)) throw new AppError(`模板品类不存在：${code}`);
 }
 

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TEMPLATE_SCHEMA_VERSION, type TemplateConfig } from "@/src/domain";
 import { AppError } from "@/src/shared/errors";
 import { parseWithSchema } from "./parse";
+import { imageReferenceSchema } from "./media";
 
 const codeSchema = z.string().trim().min(1, "编码不能为空").regex(/^[a-z][a-z0-9_]*$/, "编码必须以小写英文字母开头，并且只能包含小写字母、数字和下划线");
 export const garmentCategorySchema = codeSchema;
@@ -12,13 +13,27 @@ export const customizationOptionSchema = z.object({
   code: codeSchema,
   name: z.string().trim().min(1, "选项名称不能为空"),
   description: z.string().trim().optional(),
-  imageUrl: z.string().trim().optional(),
+  displayImage: imageReferenceSchema.optional(),
+  previewImage: imageReferenceSchema.optional(),
+  badge: z.object({ text: z.string().trim().max(80), type: z.literal("discount").default("discount") }).strict().optional(),
   sortOrder: z.number().int().nonnegative(),
   enabled: z.boolean(),
   defaultSelected: z.boolean(),
   applicableCategories: z.array(garmentCategorySchema),
   affectsPrice: z.literal(false),
-});
+}).strict();
+
+export const optionGroupSchema = z.object({
+  id: z.string().trim().min(1),
+  code: codeSchema,
+  title: z.string().trim().min(1, "选项组名称不能为空"),
+  description: z.string().trim().optional(),
+  displayStyle: z.enum(["image_text", "text", "icon_text"]),
+  required: z.boolean(),
+  enabled: z.boolean(),
+  sortOrder: z.number().int().nonnegative(),
+  options: z.array(customizationOptionSchema).max(200),
+}).strict();
 
 export const textInputConfigSchema = z.object({
   minLength: z.number().int().nonnegative("最小字符数不能小于 0"),
@@ -44,14 +59,14 @@ export const customizationStepSchema = z.object({
   title: z.string().trim().min(1, "步骤名称不能为空"),
   description: z.string().trim().optional(),
   type: z.enum(["options", "embroidery", "components", "measurements", "review"]),
-  displayType: z.enum(["image_card", "color_swatch", "radio", "select", "text_input"]).optional(),
+  defaultPreviewImage: imageReferenceSchema.optional(),
   required: z.boolean(),
   enabled: z.boolean(),
   sortOrder: z.number().int().nonnegative(),
-  options: z.array(customizationOptionSchema),
+  optionGroups: z.array(optionGroupSchema).max(50),
   textInput: textInputConfigSchema.optional(),
   embroidery: embroideryConfigSchema.optional(),
-});
+}).strict();
 
 export const garmentComponentSchema = z.object({
   id: z.string().trim().min(1),
@@ -108,17 +123,17 @@ export const templateConfigSchema = z.object({
   templateType: z.enum(["single", "composite"]),
   orderLineMode: z.literal("single_line"),
   components: z.array(garmentComponentSchema),
-  steps: z.array(customizationStepSchema),
+  steps: z.array(customizationStepSchema).max(100),
   measurementBlocks: z.array(measurementBlockSchema),
   dimensionBlocks: z.array(dimensionBlockSchema).default([]),
 });
 
 export function createEmptyTemplateConfig(): TemplateConfig {
-  return { schemaVersion: 2, buttonLabel: "开始定制", pricingMode: "none", templateType: "single", orderLineMode: "single_line", components: [], steps: [], measurementBlocks: [], dimensionBlocks: [] };
+  return { schemaVersion: 3, buttonLabel: "开始定制", pricingMode: "none", templateType: "single", orderLineMode: "single_line", components: [], steps: [], measurementBlocks: [], dimensionBlocks: [] };
 }
 
 export function parseStoredTemplateConfig(json: string, schemaVersion: number): TemplateConfig {
-  if (schemaVersion !== TEMPLATE_SCHEMA_VERSION) throw new AppError(`不支持模板 Schema v${schemaVersion}，当前只支持 v${TEMPLATE_SCHEMA_VERSION}`, 500);
+  if (schemaVersion !== TEMPLATE_SCHEMA_VERSION) throw new AppError(`配置已更新：不支持模板 Schema v${schemaVersion}，请重新配置 v${TEMPLATE_SCHEMA_VERSION} 模板`, 409);
   let value: unknown;
   try { value = JSON.parse(json); } catch { throw new AppError("模板配置 JSON 无效", 500); }
   const result = templateConfigSchema.safeParse(value);

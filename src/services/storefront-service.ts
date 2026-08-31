@@ -1,3 +1,4 @@
+import { validateOptionSelections } from "@/src/domain/template-rules";
 import { templateView, type TemplateConfig } from "@/src/domain/models";
 import { AppError, NotFoundError } from "@/src/shared/errors";
 import type { CreateCustomizationInput, ValidateConfigurationInput } from "@/src/schemas/storefront";
@@ -35,16 +36,11 @@ function addReadableProperty(properties: Record<string, string>, label: string, 
   properties[key] = value;
 }
 function validateTemplateSelections(config: ResolvedTemplateConfig, selections: Record<string, unknown>, summary: string[], properties: Record<string, string>, validateMeasurements = true, propertyLabelPrefix = "") {
+  for (const { groupTitle, optionName } of validateOptionSelections(config, selections)) {
+    addReadableProperty(properties, `定制 · ${propertyLabelPrefix}${groupTitle}`, optionName);
+    summary.push(optionName);
+  }
   for (const step of config.steps.filter((item) => item.enabled)) {
-    if (step.type === "options" && step.options.length) {
-      const selected = String(selections[step.code] ?? "");
-      if (step.required && !selected) throw new AppError(`请选择${step.title}`, 422);
-      if (!selected) continue;
-      const option = step.options.find((item) => item.enabled && item.code === selected);
-      if (!option) throw new AppError(`${step.title}包含无效选项`, 422);
-      addReadableProperty(properties, `定制 · ${propertyLabelPrefix}${step.title}`, option.name);
-      summary.push(option.name);
-    }
     if (step.type === "embroidery") {
       const enabled = selections.embroidery_enabled;
       if (typeof enabled !== "boolean") throw new AppError("请选择是否需要刺绣", 422);

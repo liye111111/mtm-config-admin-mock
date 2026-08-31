@@ -30,16 +30,22 @@ Route 中不直接编写 SQL 或业务规则。外部输入在 `schemas` 中通�
 
 ## 当前 Domain 基线
 
-管理端和 API 只支持 Template Schema v2：
+管理端和 API 只支持 Template Schema v3（步骤 → 选项组 → 选项）：
 
 ```text
 TemplateConfig
 ├── components             # 套装固定逻辑组件
-├── steps                  # 定制步骤及选项
+├── steps                  # 消费者步骤页面
+│   └── optionGroups       # 统一样式、独立必填的选项组
+│       └── options        # 素材、预览大图及折扣展示标签
 └── measurementBlocks      # 尺寸块及字段
 ```
 
-旧 `pieces`、`pieceSelection` 和平铺 `measurementFields` 数据不兼容，也没有运行时转换逻辑。升级已有环境前必须备份旧 D1，并按新版模型重新初始化或录入模板。
+旧 v2 模板不转换、不继续服务；列表及配置查询过滤旧 Schema，不自动删除实际数据。上线前需重建 v3 模板并处理商品绑定。**Theme 尚未适配 v3，不能单独部署后台给仍使用旧定制器的店铺。**
+
+新字段、原生选图接口及上线边界见 [模板 Schema v3](doc/template-schema-v3.md)。
+
+添加选项组时自动带一个待编辑选项。选择“图文”或“图标＋文本”后，各选项内显示 Shopify 素材选择按钮；已有空组切换为这两种样式时也会补充首个选项。组内素材分别配置，展示图片／图标与选中后的预览大图独立设置，发布前需补齐启用选项的必填素材。
 
 ## 本地运行
 
@@ -55,12 +61,14 @@ npm run dev
 ```bash
 npx tsc --noEmit
 npm run lint
+npm run test:unit
 npm run build
 ```
 
 ## API
 
 - `GET /api/health`
+- `POST /api/shopify/files/resolve`（Shopify 原生选择器所选图片解析，需要文件读取权限）
 - `GET /api/measurement-profiles`
 - `GET|POST /api/templates`
 - `GET|POST /api/template-categories`

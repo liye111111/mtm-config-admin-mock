@@ -28,6 +28,9 @@ declare global {
   interface Window {
     shopify?: {
       idToken(): Promise<string>;
+      intents?: {
+        invoke(intent: "pick:shopify/File", options: { data: { mediaTypes: ["MediaImage"]; multiSelect: false; selectedFiles: string[] } }): Promise<{ complete: Promise<{ code: string; data?: { ids?: string[] } }> }>;
+      };
       resourcePicker(options: { type: "product"; multiple: boolean; filter?: { variants?: boolean; status?: string } }): Promise<Array<{ id: string; title: string; handle?: string; status?: string; images?: Array<{ originalSrc?: string; altText?: string }>; variants?: Array<unknown> }> | undefined>;
     };
   }

@@ -2,16 +2,14 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useEffect, useMemo, useState } from "react";
-import { DEFAULT_EMBROIDERY_CONFIG, garmentCategoryLabels, type CustomizationOption, type CustomizationStep, type GarmentCategory, type GarmentComponentDefinition, type MeasurementBlock, type MeasurementFieldDefinition, type TemplateType, type TextInputConfig } from "@/src/domain";
+import { type GarmentCategory, type GarmentComponentDefinition, type MeasurementBlock, type MeasurementFieldDefinition, type TemplateType } from "@/src/domain";
 import { apiJson, isAuthorizationError, jsonRequest } from "./admin/api";
 import { AdminShell, type AdminView } from "./admin/app-shell";
 import { MeasurementAttributes } from "./admin/measurement-attributes";
 import { SizeCharts } from "./admin/size-charts";
+import { TemplateSteps } from "./admin/template-steps";
 import type { CustomerMeasurementProfileDetail, MeasurementAttributeDraft, MeasurementAttributeView, MeasurementProfileAdminView, MeasurementProfileFilter, MeasurementProfilePage, ProductBindingView, ShopifyProductSelection, TemplateCategoryView, TemplateTab, TemplateVersionView, TemplateView } from "./admin/types";
 import { isShopifyEmbedded, selectShopifyProducts } from "./admin/shopify";
-
-const stepTypes: Array<[CustomizationStep["type"], string]> = [["options", "定制选项"], ["embroidery", "刺绣定制"], ["components", "组合/套装"], ["measurements", "量体尺寸"], ["review", "配置确认"]];
-const displayTypes = [["image_card", "图片卡片"], ["color_swatch", "色卡"], ["radio", "单选"], ["select", "下拉选择"], ["text_input", "文本输入"]] as const;
 
 function clone<T>(value: T): T { return structuredClone(value); }
 function sortByOrder<T extends { sortOrder: number }>(items: T[]) { return items; }
@@ -28,6 +26,7 @@ export function ConfigAdmin() {
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<TemplateTab>("base");
   const [busy, setBusy] = useState(false);
+  const [imagePending, setImagePending] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -74,7 +73,7 @@ export function ConfigAdmin() {
   }, []);
 
   useEffect(() => {
-    if (!draft || (tab !== "components" && tab !== "steps")) return;
+    if (!draft || tab !== "components") return;
     const cleanups: Array<() => void> = [];
     const bindList = (elements: HTMLElement[], reorder: (from: number, to: number) => void) => {
       let source = -1;
@@ -91,9 +90,6 @@ export function ConfigAdmin() {
     };
     const topLevel = [...document.querySelectorAll<HTMLElement>(".editor > .steps > .step")];
     bindList(topLevel, (from, to) => setDraft((current) => { if (!current) return current; const next = clone(current); if (tab === "components") moveByOrder(next.config.components, from, to); else moveByOrder(next.config.steps, from, to); return next; }));
-    if (tab === "steps") document.querySelectorAll<HTMLElement>(".editor > .steps > .step").forEach((stepElement, stepIndex) => {
-      bindList([...stepElement.querySelectorAll<HTMLElement>(".option-card")], (from, to) => setDraft((current) => { if (!current) return current; const next = clone(current); moveByOrder(next.config.steps[stepIndex].options, from, to); return next; }));
-    });
     return () => cleanups.forEach((cleanup) => cleanup());
   }, [draft, tab]);
 
@@ -143,40 +139,6 @@ export function ConfigAdmin() {
   function addComponent() { updateDraft((next) => { const existingCodes = new Set(next.config.components.map((component) => component.code)); let sequence = next.config.components.length + 1; while (existingCodes.has(`component_${sequence}`)) sequence += 1; const sortOrder = next.config.components.reduce((maximum, component) => Math.max(maximum, component.sortOrder), -1) + 1; next.config.components.push({ id: crypto.randomUUID(), code: `component_${sequence}`, name: "新逻辑组件", category: "jacket", childTemplateId: "", customizationEnabled: true, required: true, sortOrder }); }); }
   function updateComponent(index: number, key: keyof GarmentComponentDefinition, value: string | boolean | number) { updateDraft((next) => { (next.config.components[index] as unknown as Record<string, unknown>)[key] = value; }); }
   function removeComponent(index: number) { updateDraft((next) => { next.config.components.splice(index, 1); }); }
-
-  function addStep() { updateDraft((next) => { const index = next.config.steps.length; next.config.steps.push({ id: crypto.randomUUID(), code: `step_${index + 1}`, title: "新定制步骤", type: "options", displayType: "radio", required: true, enabled: true, sortOrder: index, options: [] }); }); }
-  function updateStep(index: number, key: keyof CustomizationStep, value: string | boolean | number) {
-    updateDraft((next) => {
-      const step = next.config.steps[index];
-      (step as unknown as Record<string, unknown>)[key] = value;
-      if (key === "displayType") {
-        if (value === "text_input") {
-          step.options = [];
-          step.textInput ??= { minLength: 0, maxLength: 20, placeholder: "请输入文字", characterPolicy: "unicode_text" };
-        } else delete step.textInput;
-      }
-      if (key === "type") {
-        if (value === "embroidery") {
-          step.options = [];
-          step.displayType = undefined;
-          step.textInput ??= { minLength: 1, maxLength: 20, placeholder: "请输入刺绣文字", characterPolicy: "unicode_text" };
-          step.embroidery ??= structuredClone(DEFAULT_EMBROIDERY_CONFIG);
-        } else if (value !== "options") {
-          delete step.textInput;
-          delete step.embroidery;
-          step.displayType = undefined;
-        } else delete step.embroidery;
-      }
-      if (key === "type" && value !== "options" && value !== "embroidery") {
-        step.displayType = undefined;
-      }
-    });
-  }
-  function updateTextInput(index: number, key: keyof TextInputConfig, value: string | number) { updateDraft((next) => { const step = next.config.steps[index]; step.textInput ??= { minLength: 0, maxLength: 20, placeholder: "请输入文字", characterPolicy: "unicode_text" }; (step.textInput as unknown as Record<string, unknown>)[key] = value; }); }
-  function removeStep(index: number) { updateDraft((next) => { next.config.steps.splice(index, 1); next.config.steps.forEach((item, order) => { item.sortOrder = order; }); }); }
-  function addOption(stepIndex: number) { updateDraft((next) => { const options = next.config.steps[stepIndex].options; const index = options.length; options.push({ id: crypto.randomUUID(), code: `option_${index + 1}`, name: "新选项", sortOrder: index, enabled: true, defaultSelected: false, applicableCategories: [next.category], affectsPrice: false }); }); }
-  function updateOption(stepIndex: number, optionIndex: number, key: keyof CustomizationOption, value: string | boolean | number | GarmentCategory[]) { updateDraft((next) => { (next.config.steps[stepIndex].options[optionIndex] as unknown as Record<string, unknown>)[key] = value; }); }
-  function removeOption(stepIndex: number, optionIndex: number) { updateDraft((next) => { const options = next.config.steps[stepIndex].options; options.splice(optionIndex, 1); options.forEach((item, order) => { item.sortOrder = order; }); }); }
 
   function addMeasurementBlock() { updateDraft((next) => { const index = next.config.measurementBlocks.length; next.config.measurementBlocks.push({ id: crypto.randomUUID(), code: `measurement_block_${index + 1}`, name: "新尺寸块", applicableCategories: [next.category], enabled: true, sortOrder: index, fields: [] }); }); }
   function updateMeasurementBlock(index: number, key: keyof MeasurementBlock, value: string | boolean | number | GarmentCategory[]) { updateDraft((next) => { (next.config.measurementBlocks[index] as unknown as Record<string, unknown>)[key] = value; }); }
@@ -271,11 +233,10 @@ export function ConfigAdmin() {
   return <AdminShell view={view} onNavigate={navigate}>
     {notice && <div className={`notice ${notice.type}`}>{notice.text}</div>}
     {view === "templates" && <TemplateWorkspace
-      items={items} categories={categories} measurementAttributes={measurementAttributes} filtered={filtered} draft={draft} selected={selected} published={published} bindings={bindings} search={search} tab={tab} versions={versions} busy={busy}
+      items={items} categories={categories} measurementAttributes={measurementAttributes} filtered={filtered} draft={draft} selected={selected} published={published} bindings={bindings} search={search} tab={tab} versions={versions} busy={busy || imagePending} onImagePending={setImagePending}
       onSearch={setSearch} onChoose={choose} onCreate={() => create()} onCopy={() => draft && create(draft)} onDelete={removeTemplate} onSave={() => save()} onPublish={() => save(true)} onTab={openTab}
       onDraft={updateDraft} onTemplateType={setTemplateType}
       onAddComponent={addComponent} onUpdateComponent={updateComponent} onRemoveComponent={removeComponent}
-      onAddStep={addStep} onUpdateStep={updateStep} onUpdateTextInput={updateTextInput} onRemoveStep={removeStep} onAddOption={addOption} onUpdateOption={updateOption} onRemoveOption={removeOption}
       onAddBlock={addMeasurementBlock} onUpdateBlock={updateMeasurementBlock} onRemoveBlock={removeMeasurementBlock} onAddField={addMeasurementField} onUpdateField={updateMeasurementField} onSelectAttribute={selectMeasurementAttribute} onRemoveField={removeMeasurementField}
     />}
     {view === "categories" && <TemplateCategories categories={categories} draft={categoryDraft} onDraft={setCategoryDraft} onSave={()=>void saveCategory()} onDelete={(category)=>void removeCategory(category)}/>}
@@ -336,12 +297,10 @@ function CustomerProfiles({ result, filter, bindings, templates, draft, onDraft,
 }
 
 type TemplateWorkspaceProps = {
-  items: TemplateView[]; categories: TemplateCategoryView[]; measurementAttributes: MeasurementAttributeView[]; filtered: TemplateView[]; draft: TemplateView | null; selected: string; published: number; bindings: ProductBindingView[]; search: string; tab: TemplateTab; versions: TemplateVersionView[]; busy: boolean;
+  items: TemplateView[]; categories: TemplateCategoryView[]; measurementAttributes: MeasurementAttributeView[]; filtered: TemplateView[]; draft: TemplateView | null; selected: string; published: number; bindings: ProductBindingView[]; search: string; tab: TemplateTab; versions: TemplateVersionView[]; busy: boolean; onImagePending: (pending: boolean) => void;
   onSearch: (value: string) => void; onChoose: (item: TemplateView) => void; onCreate: () => void; onCopy: () => void; onDelete: () => void; onSave: () => void; onPublish: () => void; onTab: (tab: TemplateTab) => void;
   onDraft: (update: (draft: TemplateView) => void) => void; onTemplateType: (type: TemplateType) => void;
   onAddComponent: () => void; onUpdateComponent: (index: number, key: keyof GarmentComponentDefinition, value: string | boolean | number) => void; onRemoveComponent: (index: number) => void;
-  onAddStep: () => void; onUpdateStep: (index: number, key: keyof CustomizationStep, value: string | boolean | number) => void; onUpdateTextInput: (index: number, key: keyof TextInputConfig, value: string | number) => void; onRemoveStep: (index: number) => void;
-  onAddOption: (step: number) => void; onUpdateOption: (step: number, option: number, key: keyof CustomizationOption, value: string | boolean | number | GarmentCategory[]) => void; onRemoveOption: (step: number, option: number) => void;
   onAddBlock: () => void; onUpdateBlock: (index: number, key: keyof MeasurementBlock, value: string | boolean | number | GarmentCategory[]) => void; onRemoveBlock: (index: number) => void;
   onAddField: (block: number) => void; onUpdateField: (block: number, field: number, key: keyof MeasurementFieldDefinition, value: string | boolean | number) => void; onSelectAttribute: (block: number, field: number, attributeId: string) => void; onRemoveField: (block: number, field: number) => void;
 };
@@ -349,19 +308,19 @@ type TemplateWorkspaceProps = {
 function TemplateWorkspace(props: TemplateWorkspaceProps) {
   const { draft } = props;
   return <>
-    <div className="head"><div><h2>定制模板</h2><p>维护模板、组合/套装、定制步骤和量体定义。</p></div><button className="primary" disabled={props.busy} onClick={props.onCreate}>＋ 新建模板</button></div>
+    <div className="head"><div><h2>定制模板</h2><p>维护步骤、选项组、选项与量体定义。当前只显示 Schema v3 模板，旧模板需重建并重新绑定。</p></div><button className="primary" disabled={props.busy} onClick={props.onCreate}>＋ 新建模板</button></div>
     <section className="stats"><Stat label="模板总数" value={props.items.length}/><Stat label="已发布" value={props.published}/><Stat label="草稿" value={props.items.length - props.published}/><Stat label="关联商品" value={props.bindings.length}/></section>
     <div className="work">
-      <section className="panel"><div className="panel-title">模板列表</div><div className="search-wrap"><input className="search" value={props.search} onChange={(event) => props.onSearch(event.target.value)} placeholder="搜索模板名称或编码"/></div><div className="list">{props.filtered.map((item) => <button key={item.id} className={`card ${item.id === props.selected ? "active" : ""}`} onClick={() => props.onChoose(item)}><strong>{item.name}<span className={`badge ${item.status}`}>{item.status === "published" ? "已发布" : "草稿"}</span></strong><small>{item.code} · v{item.version} · {item.categoryLabel}</small></button>)}</div></section>
+      <section className="panel"><div className="panel-title">模板列表</div><div className="search-wrap"><input className="search" value={props.search} onChange={(event) => props.onSearch(event.target.value)} placeholder="搜索模板名称或编码"/></div><div className="list">{props.filtered.map((item) => <button key={item.id} className={`card ${item.id === props.selected ? "active" : ""}`} disabled={props.busy} onClick={() => props.onChoose(item)}><strong>{item.name}<span className={`badge ${item.status}`}>{item.status === "published" ? "已发布" : "草稿"}</span></strong><small>{item.code} · v{item.version} · {item.categoryLabel}</small></button>)}</div></section>
       <section className="panel">{!draft ? <div className="empty">暂无模板，请新建</div> : <div className="editor">
-        <div className="editor-head"><div><h3>{draft.name}</h3><p>{draft.code} · 当前版本 v{draft.version} · Schema v{draft.schemaVersion}</p></div><div className="actions"><button className="secondary" onClick={props.onCopy}>复制</button><button className="danger" onClick={props.onDelete}>删除</button><button className="secondary" disabled={props.busy} onClick={props.onSave}>保存草稿</button><button className="primary" disabled={props.busy} onClick={props.onPublish}>校验并发布</button></div></div>
-        <div className="tabs">{([['base','基础信息'],['components','组合/套装'],['steps','定制步骤'],['measurements','量体定义'],['versions','发布记录'],['json','JSON 预览']] as Array<[TemplateTab,string]>).filter(([key]) => key !== "components" || draft.config.templateType === "composite").map(([key,label]) => <button key={key} className={props.tab === key ? "active" : ""} onClick={() => props.onTab(key)}>{label}</button>)}</div>
+        <div className="editor-head"><div><h3>{draft.name}</h3><p>{draft.code} · 当前版本 v{draft.version} · Schema v{draft.schemaVersion}</p></div><div className="actions"><button className="secondary" disabled={props.busy} onClick={props.onCopy}>复制</button><button className="danger" disabled={props.busy} onClick={props.onDelete}>删除</button><button className="secondary" disabled={props.busy} onClick={props.onSave}>保存草稿</button><button className="primary" disabled={props.busy} onClick={props.onPublish}>校验并发布</button></div></div>
+        <div className="tabs">{([['base','基础信息'],['components','组合/套装'],['steps','定制步骤'],['measurements','量体定义'],['versions','发布记录'],['json','JSON 预览']] as Array<[TemplateTab,string]>).filter(([key]) => key !== "components" || draft.config.templateType === "composite").map(([key,label]) => <button key={key} disabled={props.busy} className={props.tab === key ? "active" : ""} onClick={() => props.onTab(key)}>{label}</button>)}</div>
         {props.tab === "base" && <BaseTab draft={draft} categories={props.categories} onDraft={props.onDraft} onTemplateType={props.onTemplateType}/>}
         {props.tab === "components" && <ComponentsTab draft={draft} items={props.items} categories={props.categories} onAdd={props.onAddComponent} onUpdate={props.onUpdateComponent} onRemove={props.onRemoveComponent}/>}
-        {props.tab === "steps" && <AdvancedStepsTab draft={draft} onAdd={props.onAddStep} onUpdate={props.onUpdateStep} onUpdateTextInput={props.onUpdateTextInput} onRemove={props.onRemoveStep} onAddOption={props.onAddOption} onUpdateOption={props.onUpdateOption} onRemoveOption={props.onRemoveOption}/>}
+        {props.tab === "steps" && <TemplateSteps key={draft.id} draft={draft} disabled={props.busy} onDraft={props.onDraft} onImagePending={props.onImagePending}/>}
         {props.tab === "measurements" && <MeasurementsTab draft={draft} attributes={props.measurementAttributes} onAddBlock={props.onAddBlock} onUpdateBlock={props.onUpdateBlock} onRemoveBlock={props.onRemoveBlock} onAddField={props.onAddField} onUpdateField={props.onUpdateField} onSelectAttribute={props.onSelectAttribute} onRemoveField={props.onRemoveField}/>}
         {props.tab === "versions" && <VersionsTab versions={props.versions}/>}
-        {props.tab === "json" && <><Section title="Schema v2 发布快照"/><pre className="json">{JSON.stringify(draft.config, null, 2)}</pre></>}
+        {props.tab === "json" && <><Section title="Schema v3 配置预览"/><pre className="json">{JSON.stringify(draft.config, null, 2)}</pre></>}
       </div>}</section>
     </div>
   </>;
@@ -377,79 +336,6 @@ function ComponentsTab({ draft, items, categories:categoryRows, onAdd, onUpdate,
   const childTemplates = items.filter((item) => item.id !== draft.id && item.status === "published" && item.config.templateType === "single");
   return <><Section title="固定逻辑组件" action={<button className="secondary" onClick={onAdd}>＋ 添加组件</button>}/><p className="section-help">上衣、西裤和马甲是生产逻辑组件，不是 Shopify 独立商品；消费者不能增删。</p><div className="steps">{sortByOrder(draft.config.components).map((component, index) => <div className="step" key={component.id}><div className="component-grid"><Field label="组件名称"><input value={component.name} onChange={(event) => onUpdate(index, "name", event.target.value)}/></Field><Field label="组件编码"><input value={component.code} onChange={(event) => onUpdate(index, "code", event.target.value)}/></Field><Field label="组件品类"><select value={component.category} onChange={(event) => onUpdate(index, "category", event.target.value)}>{categories.filter(([value]) => value !== "suit").map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="子定制模板"><select value={component.childTemplateId} onChange={(event) => onUpdate(index, "childTemplateId", event.target.value)}><option value="">请选择已发布单品模板</option>{childTemplates.filter((item) => item.category === component.category).map((item) => <option key={item.id} value={item.id}>{item.name} · v{item.version}</option>)}</select></Field><Field label="排序"><input type="number" min="0" value={component.sortOrder} onChange={(event) => onUpdate(index, "sortOrder", Number(event.target.value))}/></Field></div><div className="row-actions"><label><input type="checkbox" checked={component.customizationEnabled} onChange={(event) => onUpdate(index, "customizationEnabled", event.target.checked)}/> 启用定制</label><label><input type="checkbox" checked={component.required} onChange={(event) => onUpdate(index, "required", event.target.checked)}/> 必需组件</label><button className="delete" onClick={() => onRemove(index)}>删除组件</button></div></div>)}{!draft.config.components.length && <div className="empty">暂无逻辑组件。</div>}</div></>;
 }
-
-function StepsTab({ draft, onAdd, onUpdate, onRemove, onAddOption, onUpdateOption, onRemoveOption }: { draft: TemplateView; onAdd: () => void; onUpdate: TemplateWorkspaceProps["onUpdateStep"]; onRemove: (index: number) => void; onAddOption: (index: number) => void; onUpdateOption: TemplateWorkspaceProps["onUpdateOption"]; onRemoveOption: (step: number, option: number) => void }) {
-  return <><Section title="定制步骤" action={<button className="secondary" onClick={onAdd}>＋ 添加步骤</button>}/><div className="steps">{sortByOrder(draft.config.steps).map((step, index) => <div className="step" key={step.id}><div className="step-row"><span className="num">{index + 1}</span><input value={step.title} aria-label="步骤名称" onChange={(event) => onUpdate(index, "title", event.target.value)}/><select value={step.type} aria-label="步骤类型" onChange={(event) => onUpdate(index, "type", event.target.value)}>{stepTypes.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select><button className="delete" onClick={() => onRemove(index)}>删除</button></div><div className="form compact-form"><Field label="步骤编码"><input value={step.code} onChange={(event) => onUpdate(index, "code", event.target.value)}/></Field><Field label="展示方式"><select value={step.displayType ?? "radio"} disabled={step.type !== "options"} onChange={(event) => onUpdate(index, "displayType", event.target.value)}>{displayTypes.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="步骤说明"><input value={step.description ?? ""} onChange={(event) => onUpdate(index, "description", event.target.value)}/></Field><Field label="排序"><input type="number" min="0" value={step.sortOrder} onChange={(event) => onUpdate(index, "sortOrder", Number(event.target.value))}/></Field><Field label="状态"><span className="check-row"><label><input type="checkbox" checked={step.enabled} onChange={(event) => onUpdate(index, "enabled", event.target.checked)}/> 启用</label><label><input type="checkbox" checked={step.required} onChange={(event) => onUpdate(index, "required", event.target.checked)}/> 必填</label></span></Field></div>{step.type === "options" && <div className="choice-editor"><div className="choice-head"><strong>候选选项</strong><button className="secondary" onClick={() => onAddOption(index)}>＋ 添加选项</button></div>{sortByOrder(step.options).map((option, optionIndex) => <div className="option-card" key={option.id}><div className="choice-row"><input value={option.name} aria-label="选项名称" placeholder="显示名称" onChange={(event) => onUpdateOption(index, optionIndex, "name", event.target.value)}/><input value={option.code} aria-label="选项编码" placeholder="稳定编码" onChange={(event) => onUpdateOption(index, optionIndex, "code", event.target.value)}/><input value={option.description ?? ""} aria-label="选项说明" placeholder="选项说明（可选）" onChange={(event) => onUpdateOption(index, optionIndex, "description", event.target.value)}/><input value={option.imageUrl ?? ""} aria-label="选项图片" placeholder="图片 URL（可选）" onChange={(event) => onUpdateOption(index, optionIndex, "imageUrl", event.target.value)}/><button className="delete" onClick={() => onRemoveOption(index, optionIndex)}>删除</button></div><div className="row-actions"><label><input type="checkbox" checked={option.enabled} onChange={(event) => onUpdateOption(index, optionIndex, "enabled", event.target.checked)}/> 启用</label><label><input type="checkbox" checked={option.defaultSelected} onChange={(event) => onUpdateOption(index, optionIndex, "defaultSelected", event.target.checked)}/> 默认选中</label><label>排序 <input className="inline-number" type="number" min="0" value={option.sortOrder} onChange={(event) => onUpdateOption(index, optionIndex, "sortOrder", Number(event.target.value))}/></label><span>适用品类：{option.applicableCategories.map((category) => garmentCategoryLabels[category]).join("、") || "未设置"}</span><span className="fixed-rule">不影响价格</span></div></div>)}{!step.options.length && <p className="choice-empty">暂无候选选项。</p>}</div>}</div>)}{!draft.config.steps.length && <div className="empty">暂无定制步骤。</div>}</div></>;
-}
-
-type AdvancedStepsTabProps = {
-  draft: TemplateView;
-  onAdd: () => void;
-  onUpdate: TemplateWorkspaceProps["onUpdateStep"];
-  onUpdateTextInput: TemplateWorkspaceProps["onUpdateTextInput"];
-  onRemove: (index: number) => void;
-  onAddOption: (index: number) => void;
-  onUpdateOption: TemplateWorkspaceProps["onUpdateOption"];
-  onRemoveOption: (step: number, option: number) => void;
-};
-
-function AdvancedStepsTab({ draft, onAdd, onUpdate, onUpdateTextInput, onRemove, onAddOption, onUpdateOption, onRemoveOption }: AdvancedStepsTabProps) {
-  return <>
-    <Section title="定制步骤" action={<button className="secondary" onClick={onAdd}>＋ 添加步骤</button>}/>
-    <p className="section-help">刺绣定制在一个步骤内完成；位置、字体和颜色暂使用系统默认字典。</p>
-    <div className="steps">
-      {sortByOrder(draft.config.steps).map((step, index) => {
-        const isTextInput = step.type === "embroidery" || (step.type === "options" && step.displayType === "text_input");
-        return <div className="step" key={step.id}>
-          <div className="step-row">
-            <span className="num">{index + 1}</span>
-            <input value={step.title} aria-label="步骤名称" onChange={(event) => onUpdate(index, "title", event.target.value)}/>
-            <select value={step.type} aria-label="步骤类型" onChange={(event) => onUpdate(index, "type", event.target.value)}>{stepTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-            <button className="delete" onClick={() => onRemove(index)}>删除</button>
-          </div>
-          <div className="form compact-form">
-            <Field label="步骤编码"><input value={step.code} onChange={(event) => onUpdate(index, "code", event.target.value)}/></Field>
-            <Field label="展示方式"><select value={step.displayType ?? "radio"} disabled={step.type !== "options"} onChange={(event) => onUpdate(index, "displayType", event.target.value)}>{displayTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
-            <Field label="步骤说明"><input value={step.description ?? ""} onChange={(event) => onUpdate(index, "description", event.target.value)}/></Field>
-            <Field label="排序"><input type="number" min="0" value={step.sortOrder} onChange={(event) => onUpdate(index, "sortOrder", Number(event.target.value))}/></Field>
-            <Field label="状态"><span className="check-row"><label><input type="checkbox" checked={step.enabled} onChange={(event) => onUpdate(index, "enabled", event.target.checked)}/> 启用</label><label><input type="checkbox" checked={step.required} onChange={(event) => onUpdate(index, "required", event.target.checked)}/> 必填</label></span></Field>
-          </div>
-          {isTextInput ? <div className="choice-editor">
-            {step.type !== "embroidery" && <div className="choice-head"><strong>文本输入规则</strong></div>}
-            <div className="form compact-form">
-              <Field label="最小字符数"><input type="number" min="0" max="200" value={step.textInput?.minLength ?? 0} onChange={(event) => onUpdateTextInput(index, "minLength", Number(event.target.value))}/></Field>
-              <Field label="最大字符数"><input type="number" min="1" max="200" value={step.textInput?.maxLength ?? 20} onChange={(event) => onUpdateTextInput(index, "maxLength", Number(event.target.value))}/></Field>
-              <Field label="占位文案"><input value={step.textInput?.placeholder ?? ""} maxLength={100} placeholder="请输入刺绣文字" onChange={(event) => onUpdateTextInput(index, "placeholder", event.target.value)}/></Field>
-              <Field label="字符规则"><select value={step.textInput?.characterPolicy ?? "unicode_text"} onChange={(event) => onUpdateTextInput(index, "characterPolicy", event.target.value)}><option value="unicode_text">全部 Unicode（含 emoji）</option><option value="letters_numbers_spaces">英文、数字和空格</option><option value="letters_only">仅英文字母</option></select></Field>
-            </div>
-          </div> : step.type === "options" && <div className="choice-editor">
-            <div className="choice-head"><strong>候选选项</strong><button className="secondary" onClick={() => onAddOption(index)}>＋ 添加选项</button></div>
-            {sortByOrder(step.options).map((option, optionIndex) => <div className="option-card" key={option.id}>
-              <div className="choice-row">
-                <input value={option.name} aria-label="选项名称" placeholder="显示名称" onChange={(event) => onUpdateOption(index, optionIndex, "name", event.target.value)}/>
-                <input value={option.code} aria-label="选项编码" placeholder="稳定编码" onChange={(event) => onUpdateOption(index, optionIndex, "code", event.target.value)}/>
-                <input value={option.description ?? ""} aria-label="选项说明" placeholder="选项说明（可选）" onChange={(event) => onUpdateOption(index, optionIndex, "description", event.target.value)}/>
-                <input value={option.imageUrl ?? ""} aria-label="选项图片" placeholder="图片 URL（可选）" onChange={(event) => onUpdateOption(index, optionIndex, "imageUrl", event.target.value)}/>
-                <button className="delete" onClick={() => onRemoveOption(index, optionIndex)}>删除</button>
-              </div>
-              <div className="row-actions">
-                <label><input type="checkbox" checked={option.enabled} onChange={(event) => onUpdateOption(index, optionIndex, "enabled", event.target.checked)}/> 启用</label>
-                <label><input type="checkbox" checked={option.defaultSelected} onChange={(event) => onUpdateOption(index, optionIndex, "defaultSelected", event.target.checked)}/> 默认选中</label>
-                <label>排序 <input className="inline-number" type="number" min="0" value={option.sortOrder} onChange={(event) => onUpdateOption(index, optionIndex, "sortOrder", Number(event.target.value))}/></label>
-                <span>适用品类：{option.applicableCategories.map((category) => garmentCategoryLabels[category]).join("、") || "未设置"}</span>
-                <span className="fixed-rule">不影响价格</span>
-              </div>
-            </div>)}
-            {!step.options.length && <p className="choice-empty">暂无候选选项。</p>}
-          </div>}
-        </div>;
-      })}
-      {!draft.config.steps.length && <div className="empty">暂无定制步骤。</div>}
-    </div>
-  </>;
-}
-
-void StepsTab;
 
 function MeasurementsTab({ draft, attributes, onAddBlock, onUpdateBlock, onRemoveBlock, onAddField, onUpdateField, onSelectAttribute, onRemoveField }: { draft: TemplateView; attributes: MeasurementAttributeView[]; onAddBlock: () => void; onUpdateBlock: TemplateWorkspaceProps["onUpdateBlock"]; onRemoveBlock: (index: number) => void; onAddField: (index: number) => void; onUpdateField: TemplateWorkspaceProps["onUpdateField"]; onSelectAttribute: TemplateWorkspaceProps["onSelectAttribute"]; onRemoveField: (block: number, field: number) => void }) {
   void onSelectAttribute;

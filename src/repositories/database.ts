@@ -1,16 +1,16 @@
 import { env } from "cloudflare:workers";
 
 const seedConfig = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   buttonLabel: "开始定制",
   pricingMode: "none",
   templateType: "single",
   orderLineMode: "single_line",
   components: [],
   steps: [
-    { id: "jacket", code: "jacket", title: "西服上衣", type: "options", displayType: "radio", required: true, enabled: true, sortOrder: 0, options: [] },
-    { id: "measure", code: "measurements", title: "量体尺寸", type: "measurements", required: true, enabled: true, sortOrder: 1, options: [] },
-    { id: "review", code: "review", title: "配置确认", type: "review", required: true, enabled: true, sortOrder: 2, options: [] },
+    { id: "jacket", code: "jacket", title: "西服上衣", type: "options", required: true, enabled: true, sortOrder: 0, optionGroups: [] },
+    { id: "measure", code: "measurements", title: "量体尺寸", type: "measurements", required: true, enabled: true, sortOrder: 1, optionGroups: [] },
+    { id: "review", code: "review", title: "配置确认", type: "review", required: true, enabled: true, sortOrder: 2, optionGroups: [] },
   ],
   measurementBlocks: [{
     id: "body-measurements", code: "body_measurements", name: "身体尺寸", applicableCategories: ["jacket"], enabled: true, sortOrder: 0,
@@ -41,8 +41,8 @@ async function initializeDatabase() {
     db.prepare("CREATE TABLE IF NOT EXISTS size_charts (id TEXT PRIMARY KEY, shop_id TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, description TEXT, status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','disabled')), current_version_id TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(shop_id,code))"),
     db.prepare("CREATE TABLE IF NOT EXISTS size_chart_versions (id TEXT PRIMARY KEY, size_chart_id TEXT NOT NULL, version INTEGER NOT NULL, status TEXT NOT NULL CHECK(status IN ('draft','published','archived')), algorithm_code TEXT NOT NULL CHECK(algorithm_code IN ('range_matrix','nearest_profile','direct_lookup')), algorithm_version INTEGER NOT NULL, config_json TEXT NOT NULL, created_at TEXT NOT NULL, published_at TEXT, FOREIGN KEY(size_chart_id) REFERENCES size_charts(id), UNIQUE(size_chart_id,version))"),
     db.prepare("CREATE TABLE IF NOT EXISTS product_type_size_chart_bindings (id TEXT PRIMARY KEY, shop_id TEXT NOT NULL, product_type TEXT NOT NULL, normalized_product_type TEXT NOT NULL, size_chart_id TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(size_chart_id) REFERENCES size_charts(id), UNIQUE(shop_id,normalized_product_type))"),
-    db.prepare("CREATE TABLE IF NOT EXISTS templates (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, name TEXT NOT NULL, category TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', version INTEGER NOT NULL DEFAULT 1, schema_version INTEGER NOT NULL DEFAULT 2, config_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS template_versions (id TEXT PRIMARY KEY, template_id TEXT NOT NULL, version INTEGER NOT NULL, schema_version INTEGER NOT NULL DEFAULT 2, config_json TEXT NOT NULL, published_at TEXT NOT NULL, UNIQUE(template_id,version))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS templates (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, name TEXT NOT NULL, category TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', version INTEGER NOT NULL DEFAULT 1, schema_version INTEGER NOT NULL DEFAULT 3, config_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS template_versions (id TEXT PRIMARY KEY, template_id TEXT NOT NULL, version INTEGER NOT NULL, schema_version INTEGER NOT NULL DEFAULT 3, config_json TEXT NOT NULL, published_at TEXT NOT NULL, UNIQUE(template_id,version))"),
     db.prepare("CREATE TABLE IF NOT EXISTS product_bindings (id TEXT PRIMARY KEY, shop_id TEXT NOT NULL, shopify_product_gid TEXT NOT NULL, shopify_product_id TEXT NOT NULL, product_title TEXT NOT NULL, product_handle TEXT, product_image_url TEXT, product_image_alt TEXT, product_status TEXT NOT NULL, product_kind TEXT NOT NULL, product_type TEXT, variant_count INTEGER NOT NULL DEFAULT 0, online_store_url TEXT, shopify_admin_url TEXT, template_id TEXT NOT NULL, published_version INTEGER, enabled INTEGER NOT NULL DEFAULT 1, sync_status TEXT NOT NULL DEFAULT 'synced', sync_error TEXT, shopify_updated_at TEXT, last_synced_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(shop_id,shopify_product_gid), UNIQUE(shop_id,shopify_product_id))"),
     db.prepare("CREATE TABLE IF NOT EXISTS customization_instances (id TEXT PRIMARY KEY, shop_id TEXT NOT NULL, shopify_product_id TEXT NOT NULL, shopify_variant_id TEXT NOT NULL, shopify_sku TEXT, template_id TEXT NOT NULL, template_code TEXT NOT NULL, template_version INTEGER NOT NULL, schema_version INTEGER NOT NULL, status TEXT NOT NULL, selection_snapshot_json TEXT NOT NULL, component_snapshot_json TEXT NOT NULL, measurement_snapshot_json TEXT NOT NULL, summary TEXT NOT NULL, idempotency_key TEXT NOT NULL, customer_id TEXT, cart_token_hash TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(shop_id,idempotency_key))"),
     db.prepare("CREATE TABLE IF NOT EXISTS measurement_profiles (id TEXT PRIMARY KEY, shop_id TEXT NOT NULL, customer_id TEXT, customer_email TEXT, customer_name TEXT, guest_id_hash TEXT, unit TEXT NOT NULL, schema_version INTEGER NOT NULL DEFAULT 1, measurements_json TEXT NOT NULL, expires_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, CHECK ((customer_id IS NOT NULL AND guest_id_hash IS NULL) OR (customer_id IS NULL AND guest_id_hash IS NOT NULL)))"),
@@ -78,8 +78,8 @@ async function initializeDatabase() {
   if (count?.count) return;
   const now = new Date().toISOString();
   await db.batch([
-    db.prepare("INSERT INTO templates (id,code,name,category,status,version,schema_version,config_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)").bind("mens-suit-v1", "mens_suit_v1", "男士西服定制", "jacket", "published", 1, 2, JSON.stringify(seedConfig), now, now),
-    db.prepare("INSERT INTO template_versions (id,template_id,version,schema_version,config_json,published_at) VALUES (?,?,?,?,?,?)").bind("mens-suit-v1-v1", "mens-suit-v1", 1, 2, JSON.stringify(seedConfig), now),
+    db.prepare("INSERT INTO templates (id,code,name,category,status,version,schema_version,config_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)").bind("mens-suit-v1", "mens_suit_v1", "男士西服定制", "jacket", "published", 1, 3, JSON.stringify(seedConfig), now, now),
+    db.prepare("INSERT INTO template_versions (id,template_id,version,schema_version,config_json,published_at) VALUES (?,?,?,?,?,?)").bind("mens-suit-v1-v1", "mens-suit-v1", 1, 3, JSON.stringify(seedConfig), now),
     db.prepare("INSERT INTO product_bindings (id,shop_id,shopify_product_gid,shopify_product_id,product_title,product_handle,product_status,product_kind,variant_count,shopify_admin_url,template_id,published_version,enabled,sync_status,last_synced_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind("binding-poc", "local-dev.myshopify.com", "gid://shopify/Product/10296845205799", "10296845205799", "MTM POC 定制西服", "mtm-poc-定制西服", "ACTIVE", "single", 1, "https://admin.shopify.com/store/local-dev/products/10296845205799", "mens-suit-v1", 1, 1, "synced", now, now, now),
   ]);
 }

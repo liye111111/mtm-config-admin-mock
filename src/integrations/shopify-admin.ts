@@ -105,6 +105,27 @@ async function mutationContext(request: Request, expectedShop: string) {
   return { shop, token: await accessToken(shop, sessionToken, useClientCredentials) };
 }
 
+export async function queryShopifyFiles(request: Request, shopId: string, ids: string[]): Promise<unknown> {
+  const context = await mutationContext(request, shopId);
+  if (!context) throw new AppError("原生素材选择需要从 Shopify Admin 打开应用，本地 Mock 不提供素材", 503);
+  let response: Response;
+  try {
+    response = await fetch(`https://${context.shop}/admin/api/2026-07/graphql.json`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": context.token },
+      signal: AbortSignal.timeout(15000),
+      body: JSON.stringify({
+        query: `query MtmImages($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on MediaImage { fileStatus alt image { url altText width height } } } }`,
+        variables: { ids },
+      }),
+    });
+  } catch { throw new AppError("Shopify 图片查询超时或网络不可用，请重试", 502); }
+  if (response.status === 401 || response.status === 403) throw new AppError("Shopify 文件读取权限不足，请确认 read_files 授权及员工文件权限", 403);
+  if (!response.ok) throw new AppError("Shopify 图片查询失败，请稍后重试", 502);
+  try { return await response.json(); }
+  catch { throw new AppError("Shopify 图片查询返回了无效响应", 502); }
+}
+
 export async function setShopifyCustomizationMarker(request: Request, productGid: string, shop: string, marker: ShopifyCustomizationMarker) {
   const context = await mutationContext(request, shop);
   if (!context) return;

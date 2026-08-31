@@ -8,8 +8,9 @@ export async function route<T>(operation: () => Promise<T>, options: { successSt
     const data = await operation();
     return Response.json({ success: true, data }, { status: options.successStatus ?? 200, headers: options.headers });
   } catch (error) {
-    const status = error instanceof AppError ? error.status : 500;
-    return Response.json({ error: error instanceof Error ? error.message : options.fallback ?? "Internal server error" }, { status, headers: options.headers });
+    const status = error instanceof AppError ? error.status : error instanceof SyntaxError ? 400 : 500;
+    const message = error instanceof AppError ? error.message : error instanceof SyntaxError ? "请求必须是有效 JSON" : options.fallback ?? "服务暂时不可用，请稍后重试";
+    return Response.json({ error: message }, { status, headers: options.headers });
   }
 }
 export async function adminRoute<T>(request: Request, operation: (shopId: string) => Promise<T>, options: { successStatus?: number; headers?: HeadersInit; fallback?: string } = {}) {

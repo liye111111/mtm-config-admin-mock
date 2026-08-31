@@ -1,5 +1,7 @@
 # Cloudflare API 契约
 
+> 2026-08-31 后台改造：模板模型及选择请求已升级为 Schema v3。以下原 v2 模板示例不再代表当前接口；请以[模板 Schema v3 契约](template-schema-v3.md)为准。Theme 尚待升级，本次未部署。
+
 ## 1. 文档目的
 
 本文单独定义 MTM 定制系统部署在 Cloudflare Worker 上的 HTTP API，包括：

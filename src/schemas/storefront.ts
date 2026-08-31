@@ -3,6 +3,7 @@ import { parseWithSchema } from "./parse";
 
 const requiredId = (message: string) => z.preprocess((value) => value == null ? "" : String(value), z.string().trim().min(1, message));
 export const validateConfigurationSchema = z.object({
+  schemaVersion: z.literal(3, { error: "配置已更新，请使用 Schema v3 并重新选择" }),
   productId: requiredId("productId 必填"),
   variantId: requiredId("variantId 必填"),
   configVersion: z.coerce.number().int().positive().optional(),

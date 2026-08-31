@@ -4,7 +4,7 @@ export type GarmentCategory = string;
 export type MeasurementUnit = "CM" | "IN" | "KG";
 export type IsoDateTime = string;
 
-export const TEMPLATE_SCHEMA_VERSION = 2;
+export const TEMPLATE_SCHEMA_VERSION = 3;
 
 export const garmentCategoryLabels: Record<string, string> = {
   suit: "套装",

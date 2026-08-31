@@ -1,6 +1,6 @@
 import type { GarmentCategory, IsoDateTime, TemplateStatus, TemplateType } from "./common";
 import type { DimensionFieldDefinition, MeasurementBlock } from "./measurement";
-import type { CustomizationOption, DisplayType } from "./option";
+import type { ImageReference, OptionGroup } from "./option";
 
 export type StepType = "options" | "embroidery" | "components" | "measurements" | "review";
 
@@ -58,17 +58,17 @@ export type CustomizationStep = {
   title: string;
   description?: string;
   type: StepType;
-  displayType?: DisplayType;
+  defaultPreviewImage?: ImageReference;
   required: boolean;
   enabled: boolean;
   sortOrder: number;
-  options: CustomizationOption[];
+  optionGroups: OptionGroup[];
   textInput?: TextInputConfig;
   embroidery?: EmbroideryConfig;
 };
 
 export type TemplateConfig = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   buttonLabel: string;
   pricingMode: "none";
   templateType: TemplateType;
