@@ -25,17 +25,25 @@ function OrderButtons({ index, count, onMove }: { index: number; count: number; 
 export function TemplateSteps({ draft, disabled, onDraft, onImagePending }: {
   draft: TemplateView; disabled: boolean; onDraft: (update: (draft: TemplateView) => void) => void; onImagePending: (pending: boolean) => void;
 }) {
+  const [openSteps, setOpenSteps] = useState(() => new Set(draft.config.steps.map((step) => step.id)));
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set());
+  function toggle(setter: typeof setOpenSteps, id: string) { setter((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; }); }
+  function expand(setter: typeof setOpenSteps, id: string) { setter((current) => new Set(current).add(id)); }
   // 异步选图回填使用稳定 ID 定位；删除、移动或切换模板后不能写入其他对象。
   const update = (operation: (next: TemplateView) => void) => onDraft((next) => { if (next.id === draft.id) operation(next); });
   const stepChange = (id: string, operation: (step: CustomizationStep) => void) => update((next) => { const step = next.config.steps.find((item) => item.id === id); if (step) operation(step); });
   const groupChange = (id: string, operation: (group: OptionGroup) => void) => update((next) => { const group = next.config.steps.flatMap((step) => step.optionGroups).find((item) => item.id === id); if (group) operation(group); });
   const optionChange = (groupId: string, id: string, operation: (option: CustomizationOption) => void) => groupChange(groupId, (group) => { const option = group.options.find((item) => item.id === id); if (option) operation(option); });
   function addStep() {
-    update((next) => next.config.steps.push({ id: crypto.randomUUID(), code: codeFor("step", next.config.steps), title: "新步骤", type: "options", required: true, enabled: true, sortOrder: Math.max(-1, ...next.config.steps.map((step) => step.sortOrder)) + 1, optionGroups: [] }));
+    const id = crypto.randomUUID();
+    update((next) => next.config.steps.push({ id, code: codeFor("step", next.config.steps), title: "新步骤", type: "options", required: true, enabled: true, sortOrder: Math.max(-1, ...next.config.steps.map((step) => step.sortOrder)) + 1, optionGroups: [] }));
+    expand(setOpenSteps, id);
   }
   function addGroup(stepId: string) {
     const code = codeFor("group", draft.config.steps.flatMap((step) => step.optionGroups));
-    stepChange(stepId, (step) => step.optionGroups.push({ id: crypto.randomUUID(), code, title: "新选项组", displayStyle: "text", required: true, enabled: true, sortOrder: Math.max(-1, ...step.optionGroups.map((group) => group.sortOrder)) + 1, options: [createOption([])] }));
+    const id = crypto.randomUUID();
+    stepChange(stepId, (step) => step.optionGroups.push({ id, code, title: "新选项组", displayStyle: "text", required: true, enabled: true, sortOrder: Math.max(-1, ...step.optionGroups.map((group) => group.sortOrder)) + 1, options: [createOption([])] }));
+    expand(setOpenGroups, id);
   }
   function createOption(options: CustomizationOption[]): CustomizationOption {
     return { id: crypto.randomUUID(), code: codeFor("option", options), name: "新选项", sortOrder: Math.max(-1, ...options.map((option) => option.sortOrder)) + 1, enabled: true, defaultSelected: false, applicableCategories: [draft.category], affectsPrice: false };
@@ -80,8 +88,8 @@ export function TemplateSteps({ draft, disabled, onDraft, onImagePending }: {
       {steps.filter((step) => step.type === "components" && step.enabled).length > 1 && <p role="alert">有多个启用的组合入口，请只保留一个，避免重复展开子模板；其他类型步骤可以保留。</p>}
     </div>}
     {!steps.length && <div className="empty">暂无步骤，请添加。</div>}
-    {steps.map((step, stepIndex) => <section className="mtm-step-card" key={step.id}>
-      <div className="mtm-editor-heading"><strong>步骤 {stepIndex + 1} · {step.title}</strong><div className="actions"><OrderButtons index={stepIndex} count={steps.length} onMove={(delta) => update((next) => move(next.config.steps, step.id, delta))}/><button type="button" className="link danger-text" onClick={() => { if (confirm(`删除步骤“${step.title}”及其选项组？`)) update((next) => { next.config.steps = next.config.steps.filter((item) => item.id !== step.id); }); }}>删除步骤</button></div></div>
+    {steps.map((step, stepIndex) => <section className={`mtm-step-card${openSteps.has(step.id) ? "" : " is-collapsed"}`} key={step.id}>
+      <div className="mtm-editor-heading mtm-collapsible-heading"><div className="mtm-editor-title"><button type="button" className="mtm-collapse-toggle" aria-expanded={openSteps.has(step.id)} aria-label={`${openSteps.has(step.id) ? "收起" : "展开"}步骤 ${step.title}`} onClick={() => toggle(setOpenSteps, step.id)}>{openSteps.has(step.id) ? "▾" : "▸"}</button><span><strong>步骤 {stepIndex + 1} · {step.title}</strong><small>{stepTypes.find(([type]) => type === step.type)?.[1]} · {step.enabled ? "启用" : "停用"}{step.type === "options" ? ` · ${step.optionGroups.length} 个选项组` : ""}</small></span></div><div className="actions"><OrderButtons index={stepIndex} count={steps.length} onMove={(delta) => update((next) => move(next.config.steps, step.id, delta))}/><button type="button" className="link danger-text" onClick={() => { if (confirm(`删除步骤“${step.title}”及其选项组？`)) update((next) => { next.config.steps = next.config.steps.filter((item) => item.id !== step.id); }); }}>删除步骤</button></div></div>
       <div className="mtm-editor-grid">
         <Field label="步骤名称"><input value={step.title} onChange={(event) => stepChange(step.id, (item) => { item.title = event.target.value; })}/></Field>
         <Field label="步骤编码"><input value={step.code} onChange={(event) => stepChange(step.id, (item) => { item.code = event.target.value; })}/></Field>
@@ -93,8 +101,8 @@ export function TemplateSteps({ draft, disabled, onDraft, onImagePending }: {
       {step.type === "embroidery" && <EmbroideryFields config={step.textInput} onChange={(textInput) => stepChange(step.id, (item) => { item.textInput = textInput; })}/>}
       {step.type === "options" && <>
         <div className="mtm-editor-heading"><strong>选项组（{step.optionGroups.length}）</strong><button type="button" className="secondary" onClick={() => addGroup(step.id)}>＋ 添加选项组</button></div>
-        {ordered(step.optionGroups).map((group, groupIndex) => <section className="mtm-group-card" key={group.id}>
-          <div className="mtm-editor-heading"><strong>{group.title}</strong><div className="actions"><OrderButtons index={groupIndex} count={step.optionGroups.length} onMove={(delta) => stepChange(step.id, (item) => move(item.optionGroups, group.id, delta))}/><button type="button" className="link danger-text" onClick={() => { if (confirm(`删除选项组“${group.title}”及其选项？`)) stepChange(step.id, (item) => { item.optionGroups = item.optionGroups.filter((entry) => entry.id !== group.id); }); }}>删除组</button></div></div>
+        {ordered(step.optionGroups).map((group, groupIndex) => <section className={`mtm-group-card${openGroups.has(group.id) ? "" : " is-collapsed"}`} key={group.id}>
+          <div className="mtm-editor-heading mtm-collapsible-heading"><div className="mtm-editor-title"><button type="button" className="mtm-collapse-toggle" aria-expanded={openGroups.has(group.id)} aria-label={`${openGroups.has(group.id) ? "收起" : "展开"}选项组 ${group.title}`} onClick={() => toggle(setOpenGroups, group.id)}>{openGroups.has(group.id) ? "▾" : "▸"}</button><span><strong>{group.title}</strong><small>{styles.find(([style]) => style === group.displayStyle)?.[1]} · {group.enabled ? "启用" : "停用"} · {group.required ? "必选" : "可选"} · {group.options.length} 个选项</small></span></div><div className="actions"><OrderButtons index={groupIndex} count={step.optionGroups.length} onMove={(delta) => stepChange(step.id, (item) => move(item.optionGroups, group.id, delta))}/><button type="button" className="link danger-text" onClick={() => { if (confirm(`删除选项组“${group.title}”及其选项？`)) stepChange(step.id, (item) => { item.optionGroups = item.optionGroups.filter((entry) => entry.id !== group.id); }); }}>删除组</button></div></div>
           <div className="mtm-editor-grid">
             <Field label="组名称"><input value={group.title} onChange={(event) => groupChange(group.id, (item) => { item.title = event.target.value; })}/></Field>
             <Field label="组编码（模板内唯一）"><input value={group.code} onChange={(event) => groupChange(group.id, (item) => { item.code = event.target.value; })}/></Field>
