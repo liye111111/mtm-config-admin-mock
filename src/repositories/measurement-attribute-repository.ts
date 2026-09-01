@@ -35,6 +35,12 @@ export async function listMeasurementAttributes(shopId: string, query: Measureme
   return (await database().prepare(`SELECT measurement_attributes.*, (SELECT COUNT(DISTINCT templates.id) FROM templates, json_tree(templates.config_json) WHERE json_tree.key='attributeId' AND json_tree.value=measurement_attributes.id) reference_count FROM measurement_attributes WHERE ${conditions.join(" AND ")} ORDER BY enabled DESC, dimension, name, created_at`).bind(...bindings).all<MeasurementAttributeRow>()).results;
 }
 
+export async function listEnabledMeasurementAttributes(shopId: string) {
+  await ensureDefaultAttributes(shopId);
+  return (await database().prepare("SELECT * FROM measurement_attributes WHERE shop_id=? AND enabled=1 ORDER BY created_at, code")
+    .bind(shopId).all<MeasurementAttributeRow>()).results;
+}
+
 export async function findMeasurementAttribute(id: string, shopId: string) {
   await ensureDatabase();
   return database().prepare("SELECT measurement_attributes.*, (SELECT COUNT(DISTINCT templates.id) FROM templates, json_tree(templates.config_json) WHERE json_tree.key='attributeId' AND json_tree.value=measurement_attributes.id) reference_count FROM measurement_attributes WHERE id=? AND shop_id=?").bind(id, shopId).first<MeasurementAttributeRow>();

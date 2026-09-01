@@ -29,6 +29,16 @@ export function parseMeasurementProfileQuery(value: unknown): MeasurementProfile
 export function parseSaveMeasurementProfile(value: unknown): SaveMeasurementProfileInput { return parseWithSchema(saveMeasurementProfileSchema, value); }
 export function parseClaimMeasurementProfile(value: unknown): ClaimMeasurementProfileInput { return parseWithSchema(claimMeasurementProfileSchema, value); }
 
+export const accountMeasurementProfileSchema = z.object({
+  unit: z.enum(["CM", "IN"]),
+  schemaVersion: z.literal(1, { error: "暂不支持该量体资料版本" }),
+  measurements: z.record(z.string().trim().min(1).max(100), z.number().finite())
+    .refine((value) => Object.keys(value).length > 0, "请至少填写一项量体数据")
+    .refine((value) => Object.keys(value).length <= 100, "量体字段过多"),
+});
+export type AccountMeasurementProfileInput = z.infer<typeof accountMeasurementProfileSchema>;
+export function parseAccountMeasurementProfile(value: unknown): AccountMeasurementProfileInput { return parseWithSchema(accountMeasurementProfileSchema, value); }
+
 export const sizeRecommendationSchema = z.object({
   productId: requiredId("productId 必填"),
   productType: z.string().trim().max(255, "productType 过长"),

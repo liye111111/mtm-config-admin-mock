@@ -1,13 +1,27 @@
 import type { StorefrontIdentity } from "@/src/integrations/shopify-app-proxy";
-import type { AdminCustomerMeasurementProfileInput, ClaimMeasurementProfileInput, MeasurementProfileQuery, SaveMeasurementProfileInput } from "@/src/schemas/storefront";
+import type { AccountMeasurementProfileInput, AdminCustomerMeasurementProfileInput, ClaimMeasurementProfileInput, MeasurementProfileQuery, SaveMeasurementProfileInput } from "@/src/schemas/storefront";
 import { templateView } from "@/src/domain/models";
 import { AppError, NotFoundError } from "@/src/shared/errors";
 import * as profiles from "@/src/repositories/measurement-profile-repository";
 import * as templates from "@/src/repositories/template-repository";
+import * as attributes from "@/src/repositories/measurement-attribute-repository";
 import { resolveMeasurementMetadata } from "./measurement-config-service";
 
 const GUEST_PROFILE_DAYS = 180;
 const encoder = new TextEncoder();
+
+function requireCustomer(identity: StorefrontIdentity) {
+  if (!identity.customerId) throw new AppError("请先登录后管理量体资料", 401);
+  return identity.customerId;
+}
+
+function decimalPlaces(value: number) {
+  const text = value.toString().toLowerCase();
+  if (!text.includes("e")) return (text.split(".")[1] || "").length;
+  const [coefficient, exponentText] = text.split("e");
+  const decimals = (coefficient.split(".")[1] || "").length;
+  return Math.max(0, decimals - Number(exponentText));
+}
 
 async function hashGuestId(guestId: string) {
   const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(guestId)));
@@ -70,6 +84,56 @@ export async function saveMeasurementProfile(identity: StorefrontIdentity, input
 export async function deleteMeasurementProfile(identity: StorefrontIdentity, input: MeasurementProfileQuery) {
   if (identity.customerId) await profiles.deleteCustomerProfile(identity.shopId, identity.customerId);
   else await profiles.deleteGuestProfile(identity.shopId, await hashGuestId(requireGuestId(input.guestId)));
+  return { deleted: true };
+}
+
+export async function getAccountMeasurementFields(identity: StorefrontIdentity) {
+  requireCustomer(identity);
+  const rows = await attributes.listEnabledMeasurementAttributes(identity.shopId);
+  return {
+    schemaVersion: 1 as const,
+    fields: rows.map((row, sortOrder) => ({
+      code: row.code,
+      name: row.name,
+      description: row.description,
+      valueType: row.value_type,
+      dimension: row.dimension,
+      canonicalUnit: row.canonical_unit,
+      precision: row.precision,
+      sortOrder,
+    })),
+  };
+}
+
+export async function getAccountMeasurementProfile(identity: StorefrontIdentity) {
+  const customerId = requireCustomer(identity);
+  return toView(await profiles.findCustomerProfile(identity.shopId, customerId), "customer");
+}
+
+export async function saveAccountMeasurementProfile(identity: StorefrontIdentity, input: AccountMeasurementProfileInput) {
+  const customerId = requireCustomer(identity);
+  const rows = await attributes.listEnabledMeasurementAttributes(identity.shopId);
+  const allowed = new Map(rows.map((row) => [row.code, row]));
+  for (const [code, value] of Object.entries(input.measurements)) {
+    const attribute = allowed.get(code);
+    if (!attribute) throw new AppError(`包含未知或已停用的量体字段：${code}`, 422);
+    if (attribute.value_type !== "number") throw new AppError(`${attribute.name}暂不支持数值录入`, 422);
+    if (value <= 0) throw new AppError(`${attribute.name}必须大于 0`, 422);
+    if (decimalPlaces(value) > attribute.precision) throw new AppError(`${attribute.name}最多保留 ${attribute.precision} 位小数`, 422);
+  }
+  const row = await profiles.upsertCustomerProfile({
+    shopId: identity.shopId,
+    customerId,
+    unit: input.unit,
+    schemaVersion: input.schemaVersion,
+    measurementsJson: JSON.stringify(input.measurements),
+  });
+  if (!row) throw new AppError("量体资料保存失败", 500);
+  return toView(row, "customer");
+}
+
+export async function deleteAccountMeasurementProfile(identity: StorefrontIdentity) {
+  await profiles.deleteCustomerProfile(identity.shopId, requireCustomer(identity));
   return { deleted: true };
 }
 

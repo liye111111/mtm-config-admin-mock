@@ -83,6 +83,8 @@ npm run build
 - `GET|PUT|DELETE /api/storefront/measurement-profile`
 - `GET /api/storefront/measurement-profile/claim-status`
 - `POST /api/storefront/measurement-profile/claim`
+- `GET /api/storefront/account-measurement-fields`（登录客户账号页的店铺级启用量体字段）
+- `GET|PUT|DELETE /api/storefront/account-measurement-profile`（登录客户单套量体资料）
 
 管理端的模板、品类、量体属性、商品绑定和量体资料接口均要求 `Authorization: Bearer <Shopify Session Token>`。量体属性和量体资料管理接口会按 Session Token 中的店铺身份过滤数据；未携带或 Token 无效时返回 HTTP 401。
 
