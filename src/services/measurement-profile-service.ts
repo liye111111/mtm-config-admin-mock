@@ -31,7 +31,15 @@ async function validateMeasurements(shopId: string, input: SaveMeasurementProfil
   const row = await templates.findPublishedTemplateForProduct(shopId, input.productId);
   if (!row) throw new NotFoundError("商品没有已发布的定制配置");
   const config = await resolveMeasurementMetadata(shopId, templateView(row).config);
-  const fields = config.measurementBlocks.filter((block) => block.enabled).flatMap((block) => block.fields.filter((field) => field.enabled));
+  const childConfigs = config.templateType === "composite"
+    ? await Promise.all(config.components.filter((component) => component.customizationEnabled && component.childTemplateId).map(async (component) => {
+      const child = await templates.findPublishedTemplate(component.childTemplateId!);
+      return child ? resolveMeasurementMetadata(shopId, templateView(child).config) : null;
+    }))
+    : [];
+  const fields = [config, ...childConfigs.filter((child) => child !== null)]
+    .filter((template) => template.steps.some((step) => step.enabled && step.type === "measurements"))
+    .flatMap((template) => template.measurementBlocks.filter((block) => block.enabled).flatMap((block) => block.fields.filter((field) => field.enabled)));
   const allowed = new Map(fields.map((field) => [field.code, field]));
   for (const key of Object.keys(input.measurements)) if (!allowed.has(key)) throw new AppError(`包含未知量体字段：${key}`, 422);
   for (const field of fields) {
