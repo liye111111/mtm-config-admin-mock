@@ -9,6 +9,7 @@ import { MeasurementAttributes } from "./admin/measurement-attributes";
 import { SizeCharts } from "./admin/size-charts";
 import { ensureComponentsStep } from "@/src/domain/composite-flow";
 import { TemplateSteps } from "./admin/template-steps";
+import { storefrontTemplatePreview } from "./admin/template-json-preview";
 import type { CustomerMeasurementProfileDetail, MeasurementAttributeDraft, MeasurementAttributeView, MeasurementProfileAdminView, MeasurementProfileFilter, MeasurementProfilePage, ProductBindingView, ShopifyProductSelection, TemplateCategoryView, TemplateTab, TemplateVersionView, TemplateView } from "./admin/types";
 import { isShopifyEmbedded, selectShopifyProducts } from "./admin/shopify";
 
@@ -31,6 +32,7 @@ export function ConfigAdmin() {
   const [initializing, setInitializing] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [bindingPreview, setBindingPreview] = useState<{ title: string; json: string } | null>(null);
   const [editingBinding, setEditingBinding] = useState<ProductBindingView | null>(null);
   const [bindingProducts, setBindingProducts] = useState<ShopifyProductSelection[]>([]);
   const [measurementProfileResult, setMeasurementProfileResult] = useState<MeasurementProfilePage>({ items: [], total: 0, page: 1, pageSize: 20, totalPages: 1, stats: { total: 0, customer: 0, guest: 0, activeGuest: 0 } });
@@ -176,7 +178,7 @@ export function ConfigAdmin() {
   }
   async function removeBinding(binding: ProductBindingView) { if (!confirm(`确认解除“${binding.productTitle}”的模板绑定？`)) return; await run(async () => { await apiJson(`/api/products/${binding.id}`, { method: "DELETE" }); await loadBindings(); }, "商品绑定已删除"); }
   async function syncBinding(binding: ProductBindingView) { await run(async () => { await apiJson(`/api/products/${binding.id}/sync`, { method: "POST" }); await loadBindings(); }, `“${binding.productTitle}”已重新同步`); }
-  async function previewBinding(binding: ProductBindingView) { await run(async () => { const payload = await apiJson<unknown>(`/api/products/${binding.id}/storefront-preview`); alert(JSON.stringify(payload.data, null, 2)); }, `已生成“${binding.productTitle}”的 Storefront 配置`); }
+  async function previewBinding(binding: ProductBindingView) { await run(async () => { const payload = await apiJson<unknown>(`/api/products/${binding.id}/storefront-preview`); setBindingPreview({ title: `${binding.productTitle} · Storefront 配置`, json: JSON.stringify(payload.data, null, 2) }); }, `已生成“${binding.productTitle}”的 Storefront 配置`); }
 
   function newCustomerProfile() {
     const binding = bindings.find((item) => item.enabled);
@@ -244,6 +246,7 @@ export function ConfigAdmin() {
     {view === "measurement-attributes" && <MeasurementAttributes items={measurementAttributes} draft={measurementAttributeDraft} onDraft={setMeasurementAttributeDraft} onSave={() => void saveMeasurementAttribute()} onDelete={(attribute) => void removeMeasurementAttribute(attribute)} onToggle={(attribute) => void toggleMeasurementAttribute(attribute)} onRefresh={() => void loadMeasurementAttributes().catch(handleError)}/>}
     {view === "size-charts" && <SizeCharts measurementAttributes={measurementAttributes} />}
     {view === "products" && <ProductBindingsNew items={items} bindings={bindings} editing={editingBinding} selectedProducts={bindingProducts} versions={bindingVersions} embedded={isShopifyEmbedded()} onPick={pickProduct} onRemoveSelected={(gid) => setBindingProducts((current) => current.filter((product) => product.gid !== gid))} onNew={newBinding} onEdit={editBinding} onRemove={removeBinding} onSync={syncBinding} onPreview={previewBinding} onChange={(binding) => setEditingBinding(binding)} onTemplateChange={(templateId) => { if (!editingBinding) return; setEditingBinding({ ...editingBinding, templateId, publishedVersion: null }); void loadBindingVersions(templateId).catch(handleError); }} onCancel={() => { setEditingBinding(null); setBindingProducts([]); }} onSave={saveBinding} />}
+    {bindingPreview && <JsonPreviewModal preview={bindingPreview} onClose={() => setBindingPreview(null)}/>}
     {view === "customers" && <CustomerProfiles result={measurementProfileResult} filter={measurementProfileFilter} bindings={bindings} templates={items} draft={customerProfileDraft} onDraft={setCustomerProfileDraft} onFilter={filterMeasurementProfiles} onPage={pageMeasurementProfiles} onNew={newCustomerProfile} onEdit={(profile) => void editCustomerProfile(profile)} onDelete={(profile) => void removeCustomerProfile(profile)} onSave={() => void saveCustomerProfile()} onCancel={() => setCustomerProfileDraft(null)} onRefresh={() => void loadMeasurementProfiles().catch(handleError)} />}
   </AdminShell>;
 }
@@ -259,6 +262,28 @@ function AccessDeniedPage() {
 }
 
 type CustomerProfileDraft = { id: string; shopId: string; customerId: string; unit: "CM" | "IN"; schemaVersion: number; measurements: Record<string, number | string> };
+
+
+function JsonPreviewModal({ preview, onClose }: { preview: { title: string; json: string }; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    document.addEventListener("keydown", closeOnEscape);
+    document.body.classList.add("modal-open");
+    return () => { document.removeEventListener("keydown", closeOnEscape); document.body.classList.remove("modal-open"); };
+  }, [onClose]);
+  async function copy() {
+    try { await navigator.clipboard.writeText(preview.json); setCopied(true); }
+    catch { setCopied(false); }
+  }
+  return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className="json-preview-modal" role="dialog" aria-modal="true" aria-labelledby="json-preview-title">
+      <header className="customer-modal-header"><div><h3 id="json-preview-title">{preview.title}</h3><p>完整响应 JSON · {preview.json.length.toLocaleString("zh-CN")} 字符</p></div><button className="modal-close" aria-label="关闭 JSON 预览" onClick={onClose}>×</button></header>
+      <div className="json-preview-body"><pre className="json json-preview-content">{preview.json}</pre></div>
+      <footer className="customer-modal-footer"><span className="json-copy-status" role="status">{copied ? "已复制完整 JSON" : ""}</span><button className="secondary" onClick={() => void copy()}>复制 JSON</button><button className="primary" onClick={onClose}>关闭</button></footer>
+    </section>
+  </div>;
+}
 
 function TemplateCategories({categories,draft,onDraft,onSave,onDelete}:{categories:TemplateCategoryView[];draft:{id:string;code:string;name:string;sortOrder:number}|null;onDraft:(value:{id:string;code:string;name:string;sortOrder:number}|null)=>void;onSave:()=>void;onDelete:(category:TemplateCategoryView)=>void}) {
   return <><div className="head"><div><h2>模板品类</h2><p>维护模板可选品类；已有模板引用的品类不能删除。</p></div><button className="primary" onClick={()=>onDraft({id:"",code:"",name:"",sortOrder:categories.length*10+10})}>＋ 新建品类</button></div>{draft&&<section className="panel binding-form"><div className="form"><Field label="品类编码"><input value={draft.code} disabled={Boolean(draft.id)} onChange={(event)=>onDraft({...draft,code:event.target.value})}/></Field><Field label="品类名称"><input value={draft.name} onChange={(event)=>onDraft({...draft,name:event.target.value})}/></Field><Field label="排序"><input type="number" min="0" value={draft.sortOrder} onChange={(event)=>onDraft({...draft,sortOrder:Number(event.target.value)})}/></Field></div><div className="actions"><button className="secondary" onClick={()=>onDraft(null)}>取消</button><button className="primary" disabled={!draft.code.trim()||!draft.name.trim()} onClick={onSave}>保存品类</button></div></section>}<div className="panel table-wrap"><table><thead><tr><th>名称</th><th>编码</th><th>排序</th><th>模板数</th><th>操作</th></tr></thead><tbody>{categories.map((category)=><tr key={category.id}><td><strong>{category.name}</strong></td><td><code>{category.code}</code></td><td>{category.sortOrder}</td><td>{category.templateCount}</td><td><button className="link" onClick={()=>onDraft({id:category.id,code:category.code,name:category.name,sortOrder:category.sortOrder})}>编辑</button><button className="link danger-text" disabled={category.templateCount>0} title={category.templateCount>0?"该品类下已有模板，不能删除":""} onClick={()=>onDelete(category)}>删除</button></td></tr>)}</tbody></table></div></>;
@@ -321,7 +346,14 @@ function TemplateWorkspace(props: TemplateWorkspaceProps) {
         {props.tab === "steps" && <TemplateSteps key={draft.id} draft={draft} disabled={props.busy} onDraft={props.onDraft} onImagePending={props.onImagePending}/>}
         {props.tab === "measurements" && <MeasurementsTab draft={draft} attributes={props.measurementAttributes} onAddBlock={props.onAddBlock} onUpdateBlock={props.onUpdateBlock} onRemoveBlock={props.onRemoveBlock} onAddField={props.onAddField} onUpdateField={props.onUpdateField} onSelectAttribute={props.onSelectAttribute} onRemoveField={props.onRemoveField}/>}
         {props.tab === "versions" && <VersionsTab versions={props.versions}/>}
-        {props.tab === "json" && <><Section title="Schema v3 配置预览"/><pre className="json">{JSON.stringify(draft.config, null, 2)}</pre></>}
+        {props.tab === "json" && <>
+          <Section title="Storefront 组合展开预览"/>
+          <p className="section-help">模拟商品页一次配置请求的主体结构。已发布子模板展开在 <code>component.template</code>；草稿子模板或无效引用只显示 <code>childTemplateId</code>。商品 ID、店铺量体元数据解析结果需在商品绑定中使用“前台配置”查看。</p>
+          <pre className="json">{JSON.stringify(storefrontTemplatePreview(draft, props.items), null, 2)}</pre>
+          <Section title="D1 存储配置"/>
+          <p className="section-help">持久化配置只保存子模板引用 ID，避免复制配置和版本漂移。</p>
+          <pre className="json">{JSON.stringify(draft.config, null, 2)}</pre>
+        </>}
       </div>}</section>
     </div>
   </>;
