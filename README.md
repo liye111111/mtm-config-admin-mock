@@ -106,6 +106,31 @@ POC 商品 ID 为 `10296845205799`。
 4. Deploy command 使用 `npx wrangler deploy --config dist/server/wrangler.json`。
 5. Worker 项目名必须为 `mtm-config-admin-mock`。
 
+### 多账号目标部署
+
+为每个 Cloudflare 账号复制一份非敏感目标配置：
+
+```bash
+cp deploy/targets/example.json deploy/targets/customer-a.json
+cp deploy/targets/example_secret.json.example deploy/targets/customer-a_secret.json
+```
+
+填写目标账号的 `accountId`、Worker 名称、D1 信息、公开变量及可选域名后，先验证部署产物：
+
+```bash
+npm run deploy:target -- customer-a --dry-run
+```
+
+首次运行会自动查找或创建 D1、回写 `databaseId`、执行 migration、创建或更新 Worker，并上传 `<目标名>_secret.json` 中的 Secrets：
+
+```bash
+npm run deploy:target -- customer-a
+```
+
+D1 migration 以非交互模式执行，不会因 Wrangler 的可用性确认问题阻塞部署；Wrangler 仍会在迁移前创建备份。如果某个 SQL 已手工执行但未记录到 D1 migration 历史，当次使用 `--skip-migrations`，避免重复执行。
+
+目标 JSON 不得保存 API Token、Shopify Secret 或 Access Token。它们写入已被 Git 忽略的 `deploy/targets/<目标名>_secret.json`；其中 `CLOUDFLARE_API_TOKEN` 仅用于部署认证，脚本会将其排除，绝不上传到 Worker。CI 注入的同名环境变量优先于文件值。完整说明见 [`doc/tasks/multi-account-cloudflare-deployment.md`](doc/tasks/multi-account-cloudflare-deployment.md)。
+
 生产部署前应将 Storefront CORS 从 `*` 收紧到 Shopify 正式域名。管理接口已接入 Shopify Session Token 鉴权；后续仍需根据生产运营角色增加细粒度 RBAC。
 
 订单量体资料对账使用 `POST /api/webhooks/orders-create`。在 Shopify 应用中订阅 `orders/create`，将回调地址配置为该路径；服务端使用 `SHOPIFY_CLIENT_SECRET` 校验原始请求体 HMAC，并按 `X-Shopify-Webhook-Id` 幂等保存完整订单 Webhook 快照。订单快照可能包含个人信息，应设置访问控制、保留期限和客户数据删除流程。

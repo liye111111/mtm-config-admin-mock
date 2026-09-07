@@ -3,17 +3,17 @@ import type { MeasurementAttributeInput, MeasurementAttributeQuery } from "@/src
 import { database, ensureDatabase } from "./database";
 
 const DEFAULT_ATTRIBUTES = [
-  { code: "height", name: "身高", dimension: "length", canonicalUnit: "CM", precision: 1, aliases: ["身高"] },
-  { code: "weight", name: "体重", dimension: "weight", canonicalUnit: "KG", precision: 1, aliases: ["体重"] },
-  { code: "chest", name: "胸围", dimension: "length", canonicalUnit: "CM", precision: 1, aliases: ["胸围"] },
-  { code: "waist", name: "腰围", dimension: "length", canonicalUnit: "CM", precision: 1, aliases: ["腰围", "净腰围"] },
-  { code: "hip", name: "臀围", dimension: "length", canonicalUnit: "CM", precision: 1, aliases: ["臀围"] },
-  { code: "shoulder_width", name: "肩宽", dimension: "length", canonicalUnit: "CM", precision: 1, aliases: ["肩宽"] },
-  { code: "sleeve_length", name: "袖长", dimension: "length", canonicalUnit: "CM", precision: 1, aliases: ["袖长"] },
-  { code: "inseam", name: "裤内长", dimension: "length", canonicalUnit: "CM", precision: 1, aliases: ["裤内长", "内长"] },
-  { code: "neck", name: "领围", dimension: "length", canonicalUnit: "CM", precision: 1, aliases: ["领围"] },
-  { code: "foot_length", name: "脚长", dimension: "length", canonicalUnit: "MM", precision: 0, aliases: ["脚长"] },
-  { code: "foot_width", name: "脚宽", dimension: "length", canonicalUnit: "MM", precision: 0, aliases: ["脚宽"] },
+  { code: "height", name: "身高", dimension: "length", canonicalUnit: "CM", precision: 1, min: 120, max: 230, step: 0.1, aliases: ["身高"] },
+  { code: "weight", name: "体重", dimension: "weight", canonicalUnit: "KG", precision: 1, min: 30, max: 250, step: 0.1, aliases: ["体重"] },
+  { code: "chest", name: "胸围", dimension: "length", canonicalUnit: "CM", precision: 1, min: 50, max: 180, step: 0.1, aliases: ["胸围"] },
+  { code: "waist", name: "腰围", dimension: "length", canonicalUnit: "CM", precision: 1, min: 45, max: 180, step: 0.1, aliases: ["腰围", "净腰围"] },
+  { code: "hip", name: "臀围", dimension: "length", canonicalUnit: "CM", precision: 1, min: 50, max: 180, step: 0.1, aliases: ["臀围"] },
+  { code: "shoulder_width", name: "肩宽", dimension: "length", canonicalUnit: "CM", precision: 1, min: 30, max: 70, step: 0.1, aliases: ["肩宽"] },
+  { code: "sleeve_length", name: "袖长", dimension: "length", canonicalUnit: "CM", precision: 1, min: 30, max: 100, step: 0.1, aliases: ["袖长"] },
+  { code: "inseam", name: "裤内长", dimension: "length", canonicalUnit: "CM", precision: 1, min: 40, max: 120, step: 0.1, aliases: ["裤内长", "内长"] },
+  { code: "neck", name: "领围", dimension: "length", canonicalUnit: "CM", precision: 1, min: 25, max: 70, step: 0.1, aliases: ["领围"] },
+  { code: "foot_length", name: "脚长", dimension: "length", canonicalUnit: "MM", precision: 0, min: 180, max: 350, step: 1, aliases: ["脚长"] },
+  { code: "foot_width", name: "脚宽", dimension: "length", canonicalUnit: "MM", precision: 0, min: 60, max: 150, step: 1, aliases: ["脚宽"] },
 ] as const;
 
 export function defaultMeasurementAttributeId(shopId: string, code: string) { return `measurement:${shopId}:${code}`; }
@@ -21,8 +21,8 @@ export function defaultMeasurementAttributeId(shopId: string, code: string) { re
 export async function ensureDefaultAttributes(shopId: string) {
   await ensureDatabase();
   const now = new Date().toISOString();
-  await database().batch(DEFAULT_ATTRIBUTES.map((attribute) => database().prepare("INSERT OR IGNORE INTO measurement_attributes (id,shop_id,code,name,description,value_type,dimension,canonical_unit,precision,aliases_json,enabled,created_at,updated_at) VALUES (?,?,?,?,?,'number',?,?,?,?,1,?,?)")
-    .bind(defaultMeasurementAttributeId(shopId, attribute.code), shopId, attribute.code, attribute.name, null, attribute.dimension, attribute.canonicalUnit, attribute.precision, JSON.stringify(attribute.aliases), now, now)));
+  await database().batch(DEFAULT_ATTRIBUTES.map((attribute) => database().prepare("INSERT OR IGNORE INTO measurement_attributes (id,shop_id,code,name,description,value_type,dimension,canonical_unit,precision,min_value,max_value,step_value,aliases_json,enabled,created_at,updated_at) VALUES (?,?,?,?,?,'number',?,?,?,?,?,?,?,1,?,?)")
+    .bind(defaultMeasurementAttributeId(shopId, attribute.code), shopId, attribute.code, attribute.name, null, attribute.dimension, attribute.canonicalUnit, attribute.precision, attribute.min, attribute.max, attribute.step, JSON.stringify(attribute.aliases), now, now)));
 }
 
 export async function listMeasurementAttributes(shopId: string, query: MeasurementAttributeQuery) {
@@ -54,15 +54,15 @@ export async function findMeasurementAttributeByCode(code: string, shopId: strin
 export async function createMeasurementAttribute(shopId: string, input: MeasurementAttributeInput) {
   await ensureDatabase();
   const id = crypto.randomUUID(), now = new Date().toISOString();
-  await database().prepare("INSERT INTO measurement_attributes (id,shop_id,code,name,description,value_type,dimension,canonical_unit,precision,aliases_json,enabled,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
-    .bind(id, shopId, input.code, input.name, input.description || null, input.valueType, input.dimension, input.canonicalUnit, input.precision, JSON.stringify(input.aliases), input.enabled ? 1 : 0, now, now).run();
+  await database().prepare("INSERT INTO measurement_attributes (id,shop_id,code,name,description,value_type,dimension,canonical_unit,precision,min_value,max_value,step_value,image_json,aliases_json,enabled,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .bind(id, shopId, input.code, input.name, input.description || null, input.valueType, input.dimension, input.canonicalUnit, input.precision, input.min, input.max, input.step, input.image ? JSON.stringify(input.image) : null, JSON.stringify(input.aliases), input.enabled ? 1 : 0, now, now).run();
   return findMeasurementAttribute(id, shopId);
 }
 
 export async function updateMeasurementAttribute(id: string, shopId: string, input: MeasurementAttributeInput) {
   await ensureDatabase();
-  await database().prepare("UPDATE measurement_attributes SET name=?,description=?,value_type=?,dimension=?,canonical_unit=?,precision=?,aliases_json=?,enabled=?,updated_at=? WHERE id=? AND shop_id=?")
-    .bind(input.name, input.description || null, input.valueType, input.dimension, input.canonicalUnit, input.precision, JSON.stringify(input.aliases), input.enabled ? 1 : 0, new Date().toISOString(), id, shopId).run();
+  await database().prepare("UPDATE measurement_attributes SET name=?,description=?,value_type=?,dimension=?,canonical_unit=?,precision=?,min_value=?,max_value=?,step_value=?,image_json=?,aliases_json=?,enabled=?,updated_at=? WHERE id=? AND shop_id=?")
+    .bind(input.name, input.description || null, input.valueType, input.dimension, input.canonicalUnit, input.precision, input.min, input.max, input.step, input.image ? JSON.stringify(input.image) : null, JSON.stringify(input.aliases), input.enabled ? 1 : 0, new Date().toISOString(), id, shopId).run();
   return findMeasurementAttribute(id, shopId);
 }
 

@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 import { useState, type ReactNode } from "react";
-import { DEFAULT_EMBROIDERY_CONFIG, type CustomizationStep, type CustomizationOption, type OptionGroup, type DisplayStyle, type TextInputConfig } from "@/src/domain";
+import { DEFAULT_EMBROIDERY_CONFIG, type CustomizationStep, type CustomizationOption, type OptionGroup, type DisplayStyle, type EmbroideryChoice, type EmbroideryConfig, type TextInputConfig } from "@/src/domain";
 import { ensureComponentsStep } from "@/src/domain/composite-flow";
 import type { TemplateView } from "./types";
 import { ImageField, ImagePickerPendingContext } from "./image-field";
@@ -98,7 +98,7 @@ export function TemplateSteps({ draft, disabled, onDraft, onImagePending }: {
       </div>
       <label className="check-row"><input type="checkbox" checked={step.enabled} onChange={(event) => stepChange(step.id, (item) => { item.enabled = event.target.checked; })}/>启用步骤</label>
       <ImageField label="步骤默认大图" image={step.defaultPreviewImage} onChange={(image) => stepChange(step.id, (item) => { item.defaultPreviewImage = image; })}/>
-      {step.type === "embroidery" && <EmbroideryFields config={step.textInput} onChange={(textInput) => stepChange(step.id, (item) => { item.textInput = textInput; })}/>}
+      {step.type === "embroidery" && <EmbroideryFields config={step.textInput} embroidery={step.embroidery} onTextChange={(textInput) => stepChange(step.id, (item) => { item.textInput = textInput; })} onEmbroideryChange={(embroidery) => stepChange(step.id, (item) => { item.embroidery = embroidery; })}/>}
       {step.type === "options" && <>
         <div className="mtm-editor-heading"><strong>选项组（{step.optionGroups.length}）</strong><button type="button" className="secondary" onClick={() => addGroup(step.id)}>＋ 添加选项组</button></div>
         {ordered(step.optionGroups).map((group, groupIndex) => <section className={`mtm-group-card${openGroups.has(group.id) ? "" : " is-collapsed"}`} key={group.id}>
@@ -136,14 +136,47 @@ export function TemplateSteps({ draft, disabled, onDraft, onImagePending }: {
   </fieldset></ImagePickerPendingContext.Provider>;
 }
 
-function EmbroideryFields({ config, onChange }: { config?: TextInputConfig; onChange: (config: TextInputConfig) => void }) {
+function EmbroideryFields({ config, embroidery, onTextChange, onEmbroideryChange }: { config?: TextInputConfig; embroidery?: EmbroideryConfig; onTextChange: (config: TextInputConfig) => void; onEmbroideryChange: (config: EmbroideryConfig) => void }) {
   const value = config ?? { minLength: 1, maxLength: 20, characterPolicy: "unicode_text" as const };
-  return <div className="mtm-editor-grid">
-    <Field label="最小字符数"><input type="number" min={0} max={200} value={value.minLength} onChange={(event) => onChange({ ...value, minLength: Number(event.target.value) })}/></Field>
-    <Field label="最大字符数"><input type="number" min={1} max={200} value={value.maxLength} onChange={(event) => onChange({ ...value, maxLength: Number(event.target.value) })}/></Field>
-    <Field label="占位文案"><input value={value.placeholder ?? ""} onChange={(event) => onChange({ ...value, placeholder: event.target.value })}/></Field>
-    <Field label="字符规则"><select value={value.characterPolicy} onChange={(event) => onChange({ ...value, characterPolicy: event.target.value as TextInputConfig["characterPolicy"] })}><option value="unicode_text">全部 Unicode（含 emoji）</option><option value="letters_numbers_spaces">英文、数字和空格</option><option value="letters_only">仅英文字母</option></select></Field>
+  const dictionaries = embroidery ?? structuredClone(DEFAULT_EMBROIDERY_CONFIG);
+  return <div>
+    <div className="mtm-editor-heading"><strong>刺绣文字规则</strong></div>
+    <div className="mtm-editor-grid">
+      <Field label="最小字符数"><input type="number" min={0} max={200} value={value.minLength} onChange={(event) => onTextChange({ ...value, minLength: Number(event.target.value) })}/></Field>
+      <Field label="最大字符数"><input type="number" min={1} max={200} value={value.maxLength} onChange={(event) => onTextChange({ ...value, maxLength: Number(event.target.value) })}/></Field>
+      <Field label="占位文案"><input value={value.placeholder ?? ""} onChange={(event) => onTextChange({ ...value, placeholder: event.target.value })}/></Field>
+      <Field label="字符规则"><select value={value.characterPolicy} onChange={(event) => onTextChange({ ...value, characterPolicy: event.target.value as TextInputConfig["characterPolicy"] })}><option value="unicode_text">全部 Unicode（含 emoji）</option><option value="letters_numbers_spaces">英文、数字和空格</option><option value="letters_only">仅英文字母</option></select></Field>
+    </div>
+    <div className="mtm-editor-heading"><strong>位置、字体和颜色选项</strong></div>
+    <p className="section-help">三类选项均为可选配置；消费者端只显示有配置的类型。编码用于保存订单数据，发布后请勿随意修改。</p>
+    <div className="mtm-embroidery-choice-list">
+      <EmbroideryChoiceEditor label="刺绣位置" prefix="position" choices={dictionaries.positions} onChange={(positions) => onEmbroideryChange({ ...dictionaries, positions })}/>
+      <EmbroideryChoiceEditor label="刺绣字体" prefix="font" choices={dictionaries.fonts} onChange={(fonts) => onEmbroideryChange({ ...dictionaries, fonts })}/>
+      <EmbroideryChoiceEditor label="刺绣颜色" prefix="color" choices={dictionaries.colors} onChange={(colors) => onEmbroideryChange({ ...dictionaries, colors })}/>
+    </div>
   </div>;
+}
+
+function EmbroideryChoiceEditor({ label, prefix, choices, onChange }: { label: string; prefix: string; choices: EmbroideryChoice[]; onChange: (choices: EmbroideryChoice[]) => void }) {
+  const update = (index: number, change: Partial<EmbroideryChoice>) => onChange(choices.map((choice, position) => position === index ? { ...choice, ...change } : choice));
+  const relocate = (index: number, delta: number) => {
+    const target = index + delta;
+    if (target < 0 || target >= choices.length) return;
+    const next = [...choices], [choice] = next.splice(index, 1);
+    next.splice(target, 0, choice);
+    onChange(next);
+  };
+  return <section className="mtm-group-card">
+    <div className="mtm-editor-heading"><strong>{label}（{choices.length}）</strong><button type="button" className="secondary" onClick={() => onChange([...choices, { code: codeFor(prefix, choices), name: "新选项" }])}>＋ 添加</button></div>
+    {choices.map((choice, index) => <div className="mtm-option-card" key={index}>
+      <div className="mtm-editor-grid">
+        <Field label="选项名称"><input value={choice.name} onChange={(event) => update(index, { name: event.target.value })}/></Field>
+        <Field label="选项编码"><input value={choice.code} onChange={(event) => update(index, { code: event.target.value })}/></Field>
+      </div>
+      <div className="actions"><button type="button" className="link" disabled={index === 0} onClick={() => relocate(index, -1)}>↑ 上移</button><button type="button" className="link" disabled={index === choices.length - 1} onClick={() => relocate(index, 1)}>↓ 下移</button><button type="button" className="link danger-text" onClick={() => onChange(choices.filter((_, position) => position !== index))}>删除</button></div>
+    </div>)}
+    {!choices.length && <p className="section-help">未配置，消费者端不会显示此项。</p>}
+  </section>;
 }
 
 function StepPreview({ step }: { step: CustomizationStep }) {

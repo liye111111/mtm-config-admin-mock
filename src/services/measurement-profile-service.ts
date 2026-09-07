@@ -100,6 +100,10 @@ export async function getAccountMeasurementFields(identity: StorefrontIdentity) 
       dimension: row.dimension,
       canonicalUnit: row.canonical_unit,
       precision: row.precision,
+      min: row.min_value,
+      max: row.max_value,
+      step: row.step_value,
+      image: row.image_json ? JSON.parse(row.image_json) : undefined,
       sortOrder,
     })),
   };
@@ -118,8 +122,10 @@ export async function saveAccountMeasurementProfile(identity: StorefrontIdentity
     const attribute = allowed.get(code);
     if (!attribute) throw new AppError(`包含未知或已停用的量体字段：${code}`, 422);
     if (attribute.value_type !== "number") throw new AppError(`${attribute.name}暂不支持数值录入`, 422);
-    if (value <= 0) throw new AppError(`${attribute.name}必须大于 0`, 422);
+    if (value < attribute.min_value || value > attribute.max_value) throw new AppError(`${attribute.name}必须在 ${attribute.min_value}-${attribute.max_value} ${attribute.canonical_unit} 之间`, 422);
     if (decimalPlaces(value) > attribute.precision) throw new AppError(`${attribute.name}最多保留 ${attribute.precision} 位小数`, 422);
+    const steps = Math.abs((value - attribute.min_value) / attribute.step_value);
+    if (Math.abs(steps - Math.round(steps)) > 1e-7) throw new AppError(`${attribute.name}必须按 ${attribute.step_value} ${attribute.canonical_unit} 递增`, 422);
   }
   const row = await profiles.upsertCustomerProfile({
     shopId: identity.shopId,

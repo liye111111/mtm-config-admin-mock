@@ -48,9 +48,9 @@ const embroideryChoiceSchema = z.object({
 });
 
 export const embroideryConfigSchema = z.object({
-  positions: z.array(embroideryChoiceSchema).min(1, "至少需要一个刺绣位置"),
-  fonts: z.array(embroideryChoiceSchema).min(1, "至少需要一种刺绣字体"),
-  colors: z.array(embroideryChoiceSchema).min(1, "至少需要一种刺绣颜色"),
+  positions: z.array(embroideryChoiceSchema),
+  fonts: z.array(embroideryChoiceSchema),
+  colors: z.array(embroideryChoiceSchema),
 });
 
 export const customizationStepSchema = z.object({
@@ -86,13 +86,18 @@ export const measurementFieldSchema = z.object({
   descriptionOverride: z.string().trim().optional(),
   imageUrl: z.string().trim().optional(),
   inputUnit: z.enum(["MM", "CM", "IN", "KG", "LB", "CHI", "NONE"]),
-  min: z.number(),
-  max: z.number(),
-  step: z.number().positive("尺寸步长必须大于 0"),
+  min: z.number().optional(),
+  max: z.number().optional(),
+  step: z.number().positive().optional(),
   required: z.boolean(),
   enabled: z.boolean(),
   sortOrder: z.number().int().nonnegative(),
-});
+}).transform((field) => ({
+  ...field,
+  // 字段一旦被加入模板就应展示；旧的“未启用”语义迁移为“选填”。
+  required: field.enabled ? field.required : false,
+  enabled: true,
+}));
 
 export const dimensionFieldSchema = z.object({
   id: z.string().trim().min(1), code: codeSchema,

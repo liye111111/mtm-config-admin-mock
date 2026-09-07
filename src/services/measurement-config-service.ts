@@ -26,8 +26,12 @@ export async function resolveMeasurementMetadata(shopId: string, config: Templat
           description: field.descriptionOverride || attribute.description || undefined,
           valueType: attribute.value_type,
           dimension: attribute.dimension,
-          standardUnit: field.inputUnit,
+          standardUnit: attribute.canonical_unit,
           precision: attribute.precision,
+          min: attribute.min_value,
+          max: attribute.max_value,
+          step: attribute.step_value,
+          image: attribute.image_json ? JSON.parse(attribute.image_json) : undefined,
         };
       }),
     })),

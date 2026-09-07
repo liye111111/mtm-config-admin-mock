@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createEmptyTemplateConfig, templateConfigSchema } from "../src/schemas/template.ts";
+import { createEmptyTemplateConfig, measurementFieldSchema, templateConfigSchema } from "../src/schemas/template.ts";
 import { validateStepStructure, validateOptionSelections } from "../src/domain/template-rules.ts";
 import { parseValidateConfiguration } from "../src/schemas/storefront.ts";
 import { parseShopifyImages, canonicalizeTemplateImages } from "../src/services/template-media-service.ts";
@@ -22,6 +22,12 @@ function config() {
 const request = (path, method = "GET", body) => new Request(`http://localhost${path}`, { method, headers: { "X-MTM-Mock-Shopify": "1", "Content-Type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 const context = (id) => ({ params: Promise.resolve({ id }) });
 const responseFor = (ids, patch = {}) => ({ data: { nodes: ids.map((id) => ({ __typename: "MediaImage", id, fileStatus: "READY", alt: "领型", image: { url: image.url, altText: "", width: 400, height: 400 }, ...patch })) } });
+
+test("量体字段复选框只表示必填，旧未启用字段转为选填", () => {
+  const base = { id: "hip", attributeId: "measurement:test:hip", inputUnit: "CM", required: true, enabled: false, sortOrder: 0 };
+  assert.deepEqual(measurementFieldSchema.parse(base), { ...base, required: false, enabled: true });
+  assert.deepEqual(measurementFieldSchema.parse({ ...base, required: true, enabled: true }), { ...base, required: true, enabled: true });
+});
 
 test("v3 三层配置往返、三种样式与折扣仅展示", () => {
   const data = config();
@@ -52,6 +58,13 @@ test("组编码跨步骤唯一、默认选项互斥、特殊步骤不能混入�
   assert.throws(() => validateStepStructure(data), /不能包含选项组/);
   const reserved = config(); reserved.steps[0].optionGroups[0].code = "measurements";
   assert.throws(() => validateStepStructure(reserved), /保留字/);
+});
+test("刺绣位置、字体和颜色允许按模板选择性配置", () => {
+  const data = config();
+  data.steps = [{ id: "embroidery", code: "embroidery", title: "刺绣", type: "embroidery", required: false, enabled: true, sortOrder: 0, optionGroups: [],
+    textInput: { minLength: 1, maxLength: 20, characterPolicy: "unicode_text" }, embroidery: { positions: [], fonts: [], colors: [] } }];
+  const parsed = templateConfigSchema.parse(data);
+  assert.doesNotThrow(() => validateStepStructure(parsed, true));
 });
 test("同页各组独立校验，拒绝无效／停用选项、旧键及多选", () => {
   const data = config(), choices = { lapel: "lapel_one", pocket: "pocket_two", lining: "lining_one" };

@@ -1,0 +1,14 @@
+{
+  "accountId": "7b4c1bbf7644eaeb7d50234a51646c0e",
+  "workerName": "bxn-admin",
+  "d1": {
+    "databaseName": "bxn-admin-d1",
+    "databaseId": "abd21a3d-89c6-4f73-974e-ed13e026500d"
+  },
+  "vars": {
+    "SHOPIFY_STORE": "pod-bxn.myshopify.com",
+    "SHOPIFY_CLIENT_ID": "2c4ad4a8ed6b92bea908f2cd0feaf9ac",
+    "SHOPIFY_AUTH_MODE": "token_exchange"
+  },
+  "runMigrations": true
+}

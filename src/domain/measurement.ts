@@ -8,9 +8,6 @@ export type MeasurementFieldDefinition = {
   descriptionOverride?: string;
   imageUrl?: string;
   inputUnit: MeasurementCanonicalUnit;
-  min: number;
-  max: number;
-  step: number;
   required: boolean;
   enabled: boolean;
   sortOrder: number;
@@ -24,6 +21,10 @@ export type ResolvedMeasurementFieldDefinition = MeasurementFieldDefinition & {
   dimension: MeasurementDimension;
   standardUnit: MeasurementCanonicalUnit;
   precision: number;
+  min: number;
+  max: number;
+  step: number;
+  image?: import("./option").ImageReference;
 };
 
 export type DimensionFieldDefinition = {

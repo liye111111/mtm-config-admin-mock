@@ -26,6 +26,10 @@ export type MeasurementAttributeRow = {
   dimension: "length" | "weight" | "size_code" | "none";
   canonical_unit: "MM" | "CM" | "IN" | "KG" | "LB" | "CHI" | "NONE";
   precision: number;
+  min_value: number;
+  max_value: number;
+  step_value: number;
+  image_json: string | null;
   aliases_json: string;
   enabled: number;
   created_at: string;

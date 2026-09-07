@@ -1,3 +1,4 @@
+import type { ImageReference } from "./option";
 export type MeasurementAttributeValueType = "number" | "enum";
 export type MeasurementDimension = "length" | "weight" | "size_code" | "none";
 export type MeasurementCanonicalUnit = "MM" | "CM" | "IN" | "KG" | "LB" | "CHI" | "NONE";
@@ -12,6 +13,10 @@ export type MeasurementAttribute = {
   dimension: MeasurementDimension;
   canonicalUnit: MeasurementCanonicalUnit;
   precision: number;
+  min: number;
+  max: number;
+  step: number;
+  image?: ImageReference;
   aliases: string[];
   enabled: boolean;
   referenceCount: number;

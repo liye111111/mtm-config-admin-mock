@@ -52,6 +52,7 @@ function validateTemplateSelections(config: ResolvedTemplateConfig, selections: 
       }
       if (!step.embroidery || !step.textInput) throw new AppError("刺绣配置不完整", 500);
       const selectedChoice = (key: string, label: string, choices: Array<{code: string; name: string}>) => {
+        if (!choices.length) return undefined;
         const code = String(selections[key] ?? "");
         const choice = choices.find((item) => item.code === code);
         if (!choice) throw new AppError(`请选择${label}`, 422);
@@ -66,11 +67,11 @@ function validateTemplateSelections(config: ResolvedTemplateConfig, selections: 
       if (step.textInput.characterPolicy === "letters_only" && !/^[A-Za-z]+$/.test(text)) throw new AppError("刺绣文字仅允许英文字母", 422);
       if (step.textInput.characterPolicy === "letters_numbers_spaces" && !/^[A-Za-z0-9 ]+$/.test(text)) throw new AppError("刺绣文字仅允许英文、数字和空格", 422);
       addReadableProperty(properties, `刺绣 · ${propertyLabelPrefix}服务`, "需要刺绣");
-      addReadableProperty(properties, `刺绣 · ${propertyLabelPrefix}位置`, position);
-      addReadableProperty(properties, `刺绣 · ${propertyLabelPrefix}字体`, font);
-      addReadableProperty(properties, `刺绣 · ${propertyLabelPrefix}颜色`, color);
+      if (position) addReadableProperty(properties, `刺绣 · ${propertyLabelPrefix}位置`, position);
+      if (font) addReadableProperty(properties, `刺绣 · ${propertyLabelPrefix}字体`, font);
+      if (color) addReadableProperty(properties, `刺绣 · ${propertyLabelPrefix}颜色`, color);
       addReadableProperty(properties, `刺绣 · ${propertyLabelPrefix}文字`, text);
-      summary.push(`刺绣：${position} / ${font} / ${color} / ${text}`);
+      summary.push(`刺绣：${[position, font, color, text].filter(Boolean).join(" / ")}`);
     }
   }
   if (validateMeasurements) {
@@ -81,6 +82,8 @@ function validateTemplateSelections(config: ResolvedTemplateConfig, selections: 
       if (raw === undefined || raw === null || raw === "") continue;
       const value = Number(raw);
       if (!Number.isFinite(value) || value < field.min || value > field.max) throw new AppError(`${field.name}必须在 ${field.min}-${field.max} ${field.standardUnit} 之间`, 422);
+      const steps = Math.abs((value - field.min) / field.step);
+      if (Math.abs(steps - Math.round(steps)) > 1e-7) throw new AppError(`${field.name}必须按 ${field.step} ${field.standardUnit} 递增`, 422);
       addReadableProperty(properties, `量体 · ${block.name} · ${field.name}`, `${value} ${field.standardUnit}`);
       summary.push(`${field.name} ${value}${field.standardUnit}`);
     }

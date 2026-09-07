@@ -13,7 +13,6 @@ async function validateTemplateConfig(config: TemplateConfig) {
   ensureUnique(config.measurementBlocks.map((block) => block.code), "尺寸块");
   for (const block of config.measurementBlocks) {
     ensureUnique(block.fields.map((field) => field.attributeId), `${block.name}量体属性`);
-    for (const field of block.fields) if (field.min >= field.max) throw new AppError(`${field.labelOverride || "量体字段"}的最小值必须小于最大值`);
   }
   ensureUnique(config.dimensionBlocks.map((block) => block.code), "成品尺寸块");
   for (const block of config.dimensionBlocks) {

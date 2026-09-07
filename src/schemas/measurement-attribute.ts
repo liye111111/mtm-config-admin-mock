@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { compatibleMeasurementUnits } from "@/src/domain";
 import { parseWithSchema } from "./parse";
+import { imageReferenceSchema } from "./media";
 
 const code = z.string().trim().min(1, "属性编码不能为空").max(100).regex(/^[a-z][a-z0-9_]*$/, "属性编码必须以小写英文字母开头，并且只能包含小写字母、数字和下划线");
 const dimension = z.enum(["length", "weight", "size_code", "none"]);
@@ -15,12 +16,17 @@ export const measurementAttributeInputSchema = z.object({
   dimension,
   canonicalUnit,
   precision: z.coerce.number().int().min(0, "精度不能小于 0").max(6, "精度不能超过 6 位小数"),
+  min: z.coerce.number().finite(),
+  max: z.coerce.number().finite(),
+  step: z.coerce.number().positive("步长必须大于 0"),
+  image: imageReferenceSchema.optional(),
   aliases,
   enabled: z.boolean(),
 }).superRefine((value, context) => {
   if (!compatibleMeasurementUnits[value.dimension].includes(value.canonicalUnit)) context.addIssue({ code: "custom", path: ["canonicalUnit"], message: "标准单位与物理维度不兼容" });
   if (value.valueType === "enum" && value.dimension !== "size_code" && value.dimension !== "none") context.addIssue({ code: "custom", path: ["valueType"], message: "枚举属性只能使用尺码编码或无维度" });
   if (value.valueType === "enum" && value.precision !== 0) context.addIssue({ code: "custom", path: ["precision"], message: "枚举属性的精度必须为 0" });
+  if (value.valueType === "number" && value.min >= value.max) context.addIssue({ code: "custom", path: ["max"], message: "最大值必须大于最小值" });
 });
 
 export const measurementAttributeQuerySchema = z.object({

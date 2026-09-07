@@ -16,6 +16,7 @@ test("账号量体字段只返回启用的店铺级元数据", async () => {
   assert.equal(result.schemaVersion, 1);
   assert.ok(result.fields.some((field) => field.code === "height" && field.canonicalUnit === "CM"));
   assert.ok(result.fields.some((field) => field.code === "weight" && field.canonicalUnit === "KG"));
+  assert.ok(result.fields.some((field) => field.code === "height" && field.min === 120 && field.max === 230 && field.step === 0.1));
 });
 
 test("账号只能保存一套资料，重复保存覆盖且删除幂等", async () => {
@@ -30,10 +31,10 @@ test("账号只能保存一套资料，重复保存覆盖且删除幂等", async
   assert.equal((await getAccountMeasurementProfile(identity)).exists, false);
 });
 
-test("账号接口拒绝匿名身份、未知字段、非正数和超精度", async () => {
+test("账号接口拒绝匿名身份、未知字段、超出属性范围和超精度", async () => {
   await assert.rejects(getAccountMeasurementFields({ ...identity, customerId: null }), /请先登录/);
   await assert.rejects(saveAccountMeasurementProfile(identity, { unit: "CM", schemaVersion: 1, measurements: { unknown: 1 } }), /未知或已停用/);
-  await assert.rejects(saveAccountMeasurementProfile(identity, { unit: "CM", schemaVersion: 1, measurements: { height: 0 } }), /大于 0/);
+  await assert.rejects(saveAccountMeasurementProfile(identity, { unit: "CM", schemaVersion: 1, measurements: { height: 0 } }), /120-230/);
   await assert.rejects(saveAccountMeasurementProfile(identity, { unit: "CM", schemaVersion: 1, measurements: { height: 175.55 } }), /最多保留 1 位小数/);
 });
 
