@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 
 const seedConfig = {
   schemaVersion: 3,
+  previewMode: "none",
   buttonLabel: "开始定制",
   pricingMode: "none",
   templateType: "single",

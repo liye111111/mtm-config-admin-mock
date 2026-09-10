@@ -270,6 +270,15 @@ td small{display:block;color:var(--muted);margin-top:3px}
 .sortable-card::before { content: "⠿ 拖曳排序"; display: block; margin-bottom: 8px; color: #616161; font-size: 12px; font-weight: 600; }
 .sortable-card:active { cursor: grabbing; }
 .sortable-card.dragging { opacity: .45; outline: 2px dashed #8a8a8a; }
+.mtm-preview-config{padding:18px;border:1px solid var(--line);border-radius:12px;background:var(--surface-secondary)}
+.mtm-layer-layout{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:16px 0}
+.mtm-layer-row{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:grab}
+.mtm-layer-row.dragging{opacity:.45;outline:2px dashed #8a8a8a}
+.mtm-layer-row small{color:var(--muted)}
+.mtm-layer-preview{position:relative;width:min(100%,520px);margin:16px auto 0;overflow:hidden;border:1px solid var(--line);border-radius:10px;background:#f4f4f4}
+.mtm-layer-preview img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.mtm-layer-preview img:first-child{position:relative;display:block}
+@media(max-width:760px){.mtm-layer-layout{grid-template-columns:1fr}}
 .component-grid > .field:last-child { display: none; }
 .editor > .steps > .step:not(.measurement-block) > .compact-form > .field:nth-child(4) { display: none; }
 .option-card .row-actions label:has(.inline-number) { display: none; }

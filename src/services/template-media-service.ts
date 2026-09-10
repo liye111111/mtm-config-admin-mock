@@ -40,7 +40,7 @@ export async function resolveImages(request: Request, shopId: string, input: unk
 
 // 保存和发布时重新查询当前店铺，防止绕过选择器提交其他店铺文件或伪造 URL。
 export async function canonicalizeTemplateImages(request: Request, shopId: string, config: TemplateConfig): Promise<TemplateConfig> {
-  const refs = config.steps.flatMap((step) => [step.defaultPreviewImage, ...step.optionGroups.flatMap((group) => group.options.flatMap((option) => [option.displayImage, option.previewImage]))])
+  const refs = [config.previewDisplayImage, config.previewCanvas?.baseImage, ...config.steps.flatMap((step) => step.optionGroups.flatMap((group) => group.options.flatMap((option) => [option.displayImage, option.previewLayer?.type === "image" ? option.previewLayer.image : undefined])))]
     .filter((image): image is ImageReference => Boolean(image));
   const ids = [...new Set(refs.map((image) => image.fileId))];
   if (ids.length > 250) throw new AppError("单个模板最多关联 250 张不同图片，请拆分模板", 422);
@@ -49,10 +49,17 @@ export async function canonicalizeTemplateImages(request: Request, shopId: strin
     for (const image of await resolveImages(request, shopId, { ids: ids.slice(index, index + 50) })) images.set(image.fileId, image);
   }
   const lookup = (image?: ImageReference) => image ? images.get(image.fileId) : undefined;
-  return { ...config, steps: config.steps.map((step) => ({ ...step,
-    defaultPreviewImage: lookup(step.defaultPreviewImage),
+  const required = (image: ImageReference) => {
+    const resolved = lookup(image);
+    if (!resolved) throw new AppError(`图片不存在或无法读取：${image.fileId}`, 422);
+    return resolved;
+  };
+  return { ...config,
+    previewDisplayImage: lookup(config.previewDisplayImage),
+    previewCanvas: config.previewCanvas?.baseImage ? { baseImage: required(config.previewCanvas.baseImage) } : undefined,
+    steps: config.steps.map((step) => ({ ...step,
     optionGroups: step.optionGroups.map((group) => ({ ...group, options: group.options.map((option) => ({ ...option,
-      displayImage: lookup(option.displayImage), previewImage: lookup(option.previewImage),
+      displayImage: lookup(option.displayImage), previewLayer: option.previewLayer?.type === "image" ? { type: "image" as const, image: required(option.previewLayer.image) } : option.previewLayer,
     })) })),
   })) };
 }

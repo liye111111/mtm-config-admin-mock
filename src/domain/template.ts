@@ -59,7 +59,6 @@ export type CustomizationStep = {
   title: string;
   description?: string;
   type: StepType;
-  defaultPreviewImage?: ImageReference;
   required: boolean;
   enabled: boolean;
   sortOrder: number;
@@ -68,8 +67,13 @@ export type CustomizationStep = {
   embroidery?: EmbroideryConfig;
 };
 
+export type PreviewCanvas = { baseImage: ImageReference };
+
 export type TemplateConfig = {
   schemaVersion: 3;
+  previewMode: "none" | "layered";
+  previewDisplayImage?: ImageReference;
+  previewCanvas?: PreviewCanvas;
   buttonLabel: string;
   pricingMode: "none";
   templateType: TemplateType;

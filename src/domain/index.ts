@@ -1,4 +1,5 @@
 export * from "./common";
+export * from "./code";
 export * from "./customization-instance";
 export * from "./measurement";
 export * from "./measurement-attribute";

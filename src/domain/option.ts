@@ -19,8 +19,14 @@ export type OptionGroup = {
   required: boolean;
   enabled: boolean;
   sortOrder: number;
+  previewEnabled: boolean;
+  previewLayerOrder: number;
   options: CustomizationOption[];
 };
+
+export type PreviewLayer =
+  | { type: "image"; image: ImageReference }
+  | { type: "empty" };
 
 export type CustomizationOption = {
   id: string;
@@ -28,7 +34,7 @@ export type CustomizationOption = {
   name: string;
   description?: string;
   displayImage?: ImageReference;
-  previewImage?: ImageReference;
+  previewLayer?: PreviewLayer;
   badge?: { text: string; type: "discount" };
   sortOrder: number;
   enabled: boolean;

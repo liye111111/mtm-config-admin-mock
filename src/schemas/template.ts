@@ -7,21 +7,30 @@ import { imageReferenceSchema } from "./media";
 const codeSchema = z.string().trim().min(1, "编码不能为空").regex(/^[a-z][a-z0-9_]*$/, "编码必须以小写英文字母开头，并且只能包含小写字母、数字和下划线");
 export const garmentCategorySchema = codeSchema;
 const measurementUnitSchema = z.enum(["CM", "IN", "KG"]);
+function withoutLegacyField(value: unknown, field: string) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
+  const clean = { ...value } as Record<string, unknown>;
+  delete clean[field];
+  return clean;
+}
 
-export const customizationOptionSchema = z.object({
+export const customizationOptionSchema = z.preprocess((value) => withoutLegacyField(value, "previewImage"), z.object({
   id: z.string().trim().min(1),
   code: codeSchema,
   name: z.string().trim().min(1, "选项名称不能为空"),
   description: z.string().trim().optional(),
   displayImage: imageReferenceSchema.optional(),
-  previewImage: imageReferenceSchema.optional(),
+  previewLayer: z.discriminatedUnion("type", [
+    z.object({ type: z.literal("image"), image: imageReferenceSchema }).strict(),
+    z.object({ type: z.literal("empty") }).strict(),
+  ]).optional(),
   badge: z.object({ text: z.string().trim().max(80), type: z.literal("discount").default("discount") }).strict().optional(),
   sortOrder: z.number().int().nonnegative(),
   enabled: z.boolean(),
   defaultSelected: z.boolean(),
   applicableCategories: z.array(garmentCategorySchema),
   affectsPrice: z.literal(false),
-}).strict();
+}).strict());
 
 export const optionGroupSchema = z.object({
   id: z.string().trim().min(1),
@@ -32,6 +41,8 @@ export const optionGroupSchema = z.object({
   required: z.boolean(),
   enabled: z.boolean(),
   sortOrder: z.number().int().nonnegative(),
+  previewEnabled: z.boolean().default(false),
+  previewLayerOrder: z.number().int().nonnegative().default(0),
   options: z.array(customizationOptionSchema).max(200),
 }).strict();
 
@@ -54,20 +65,19 @@ export const embroideryConfigSchema = z.object({
   colors: z.array(embroideryChoiceSchema),
 });
 
-export const customizationStepSchema = z.object({
+export const customizationStepSchema = z.preprocess((value) => withoutLegacyField(value, "defaultPreviewImage"), z.object({
   id: z.string().trim().min(1),
   code: codeSchema,
   title: z.string().trim().min(1, "步骤名称不能为空"),
   description: z.string().trim().optional(),
   type: z.enum(["options", "embroidery", "components", "measurements", "review"]),
-  defaultPreviewImage: imageReferenceSchema.optional(),
   required: z.boolean(),
   enabled: z.boolean(),
   sortOrder: z.number().int().nonnegative(),
   optionGroups: z.array(optionGroupSchema).max(50),
   textInput: textInputConfigSchema.optional(),
   embroidery: embroideryConfigSchema.optional(),
-}).strict();
+}).strict());
 
 export const garmentComponentSchema = z.object({
   id: z.string().trim().min(1),
@@ -124,6 +134,9 @@ export const dimensionBlockSchema = measurementBlockSchema.extend({ fields: z.ar
 
 export const templateConfigSchema = z.object({
   schemaVersion: z.literal(TEMPLATE_SCHEMA_VERSION),
+  previewMode: z.enum(["none", "layered"]).default("none"),
+  previewDisplayImage: imageReferenceSchema.optional(),
+  previewCanvas: z.object({ baseImage: imageReferenceSchema }).strict().optional(),
   buttonLabel: z.string().trim().min(1, "前台按钮文字不能为空"),
   pricingMode: z.literal("none"),
   templateType: z.enum(["single", "composite"]),
@@ -135,7 +148,7 @@ export const templateConfigSchema = z.object({
 });
 
 export function createEmptyTemplateConfig(): TemplateConfig {
-  return { schemaVersion: 3, buttonLabel: "开始定制", pricingMode: "none", templateType: "single", orderLineMode: "single_line", components: [], steps: [], measurementBlocks: [], dimensionBlocks: [] };
+  return { schemaVersion: 3, previewMode: "none", buttonLabel: "开始定制", pricingMode: "none", templateType: "single", orderLineMode: "single_line", components: [], steps: [], measurementBlocks: [], dimensionBlocks: [] };
 }
 
 export function parseStoredTemplateConfig(json: string, schemaVersion: number): TemplateConfig {

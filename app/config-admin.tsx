@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useEffect, useMemo, useState } from "react";
-import { type GarmentCategory, type GarmentComponentDefinition, type MeasurementBlock, type MeasurementFieldDefinition, type TemplateType } from "@/src/domain";
+import { createUniqueCode, type GarmentCategory, type GarmentComponentDefinition, type MeasurementBlock, type MeasurementFieldDefinition, type TemplateType } from "@/src/domain";
 import { apiJson, isAuthorizationError, jsonRequest } from "./admin/api";
 import { AdminShell, type AdminView } from "./admin/app-shell";
 import { MeasurementAttributes } from "./admin/measurement-attributes";
@@ -139,11 +139,11 @@ export function ConfigAdmin() {
 
   function setTemplateType(type: TemplateType) { updateDraft((next) => { next.config.templateType = type; next.category = type === "composite" ? "suit" : next.category === "suit" ? "jacket" : next.category; if (type === "composite") ensureComponentsStep(next.config); if (type === "single") { next.config.components = []; next.config.steps = next.config.steps.filter((step) => step.type !== "components"); } }); if (type === "single" && tab === "components") setTab("base"); }
 
-  function addComponent() { updateDraft((next) => { const existingCodes = new Set(next.config.components.map((component) => component.code)); let sequence = next.config.components.length + 1; while (existingCodes.has(`component_${sequence}`)) sequence += 1; const sortOrder = next.config.components.reduce((maximum, component) => Math.max(maximum, component.sortOrder), -1) + 1; next.config.components.push({ id: crypto.randomUUID(), code: `component_${sequence}`, name: "新逻辑组件", category: "jacket", childTemplateId: "", customizationEnabled: true, required: true, sortOrder }); }); }
+  function addComponent() { updateDraft((next) => { const sortOrder = next.config.components.reduce((maximum, component) => Math.max(maximum, component.sortOrder), -1) + 1; next.config.components.push({ id: crypto.randomUUID(), code: createUniqueCode("component"), name: "新逻辑组件", category: "jacket", childTemplateId: "", customizationEnabled: true, required: true, sortOrder }); }); }
   function updateComponent(index: number, key: keyof GarmentComponentDefinition, value: string | boolean | number) { updateDraft((next) => { (next.config.components[index] as unknown as Record<string, unknown>)[key] = value; }); }
   function removeComponent(index: number) { updateDraft((next) => { next.config.components.splice(index, 1); }); }
 
-  function addMeasurementBlock() { updateDraft((next) => { const index = next.config.measurementBlocks.length; next.config.measurementBlocks.push({ id: crypto.randomUUID(), code: `measurement_block_${index + 1}`, name: "新尺寸块", applicableCategories: [next.category], enabled: true, sortOrder: index, fields: [] }); }); }
+  function addMeasurementBlock() { updateDraft((next) => { const index = next.config.measurementBlocks.length; next.config.measurementBlocks.push({ id: crypto.randomUUID(), code: createUniqueCode("measurement_block"), name: "新尺寸块", applicableCategories: [next.category], enabled: true, sortOrder: index, fields: [] }); }); }
   function updateMeasurementBlock(index: number, key: keyof MeasurementBlock, value: string | boolean | number | GarmentCategory[]) { updateDraft((next) => { (next.config.measurementBlocks[index] as unknown as Record<string, unknown>)[key] = value; }); }
   function removeMeasurementBlock(index: number) { updateDraft((next) => { next.config.measurementBlocks.splice(index, 1); next.config.measurementBlocks.forEach((item, order) => { item.sortOrder = order; }); }); }
   function addMeasurementField(blockIndex: number) { const attribute = measurementAttributes.find((item) => item.enabled); if (!attribute) return handleError(new Error("请先创建并启用量体属性")); updateDraft((next) => { const fields = next.config.measurementBlocks[blockIndex].fields; const index = fields.length; fields.push({ id: crypto.randomUUID(), attributeId: attribute.id, inputUnit: attribute.canonicalUnit, required: true, enabled: true, sortOrder: index }); }); }

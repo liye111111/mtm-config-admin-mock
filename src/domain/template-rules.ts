@@ -16,6 +16,8 @@ export function validateStepStructure(config: TemplateConfig, publishing = false
   const groups = config.steps.flatMap((step) => step.optionGroups);
   ensureUnique(groups.map((group) => group.code), "选项组编码");
   ensureUnique(groups.map((group) => group.id), "选项组 ID");
+  ensureUnique(groups.filter((group) => group.previewEnabled).map((group) => String(group.previewLayerOrder)), "合图图层顺序");
+  if (publishing && config.previewMode === "layered" && !config.previewCanvas?.baseImage) throw new AppError("分层合图模板缺少单品底图，请选择图片后发布");
   const reserved = new Set(["measurements", "dimensions", "components", "embroidery_enabled", "embroidery_position", "embroidery_font", "embroidery_color", "embroidery_text", "__proto__", "constructor", "prototype"]);
   for (const group of groups) if (reserved.has(group.code)) throw new AppError(`选项组编码为系统保留字：${group.code}`);
   for (const step of config.steps) {
@@ -28,6 +30,11 @@ export function validateStepStructure(config: TemplateConfig, publishing = false
       if (publishing && step.enabled && group.enabled && group.displayStyle !== "text") {
         for (const option of group.options.filter((item) => item.enabled)) {
           if (!option.displayImage) throw new AppError(`${label} / ${option.name}缺少展示素材，请选择图片后发布`);
+        }
+      }
+      if (publishing && config.previewMode === "layered" && step.enabled && group.enabled && group.previewEnabled) {
+        for (const option of group.options.filter((item) => item.enabled)) {
+          if (!option.previewLayer) throw new AppError(`${label} / ${option.name}缺少合图设置，请选择透明图层或标记为无视觉变化`);
         }
       }
     }

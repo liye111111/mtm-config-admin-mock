@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 import { useState, type ReactNode } from "react";
-import { DEFAULT_EMBROIDERY_CONFIG, type CustomizationStep, type CustomizationOption, type OptionGroup, type DisplayStyle, type EmbroideryChoice, type EmbroideryConfig, type TextInputConfig } from "@/src/domain";
+import { createUniqueCode, DEFAULT_EMBROIDERY_CONFIG, type CustomizationStep, type CustomizationOption, type OptionGroup, type DisplayStyle, type EmbroideryChoice, type EmbroideryConfig, type TextInputConfig } from "@/src/domain";
 import { ensureComponentsStep } from "@/src/domain/composite-flow";
 import type { TemplateView } from "./types";
 import { ImageField, ImagePickerPendingContext } from "./image-field";
@@ -9,7 +9,6 @@ import { ImageField, ImagePickerPendingContext } from "./image-field";
 const stepTypes: Array<[CustomizationStep["type"], string]> = [["options", "选项步骤"], ["embroidery", "刺绣定制"], ["components", "组合/套装"], ["measurements", "量体尺寸"], ["review", "配置确认"]];
 const styles: Array<[DisplayStyle, string]> = [["image_text", "图文"], ["text", "文本"], ["icon_text", "图标＋文本"]];
 function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="mtm-editor-field"><span>{label}</span>{children}</label>; }
-function codeFor(prefix: string, items: Array<{ code: string }>) { let index = 1; const codes = new Set(items.map((item) => item.code)); while (codes.has(`${prefix}_${index}`)) index++; return `${prefix}_${index}`; }
 function ordered<T extends { sortOrder: number }>(items: T[]) { return [...items].sort((a, b) => a.sortOrder - b.sortOrder); }
 function move<T extends { id: string; sortOrder: number }>(items: T[], id: string, delta: number) {
   items.sort((a, b) => a.sortOrder - b.sortOrder);
@@ -27,6 +26,7 @@ export function TemplateSteps({ draft, disabled, onDraft, onImagePending }: {
 }) {
   const [openSteps, setOpenSteps] = useState(() => new Set(draft.config.steps.map((step) => step.id)));
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set());
+  const [draggingLayer, setDraggingLayer] = useState<string | null>(null);
   function toggle(setter: typeof setOpenSteps, id: string) { setter((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; }); }
   function expand(setter: typeof setOpenSteps, id: string) { setter((current) => new Set(current).add(id)); }
   // 异步选图回填使用稳定 ID 定位；删除、移动或切换模板后不能写入其他对象。
@@ -36,17 +36,18 @@ export function TemplateSteps({ draft, disabled, onDraft, onImagePending }: {
   const optionChange = (groupId: string, id: string, operation: (option: CustomizationOption) => void) => groupChange(groupId, (group) => { const option = group.options.find((item) => item.id === id); if (option) operation(option); });
   function addStep() {
     const id = crypto.randomUUID();
-    update((next) => next.config.steps.push({ id, code: codeFor("step", next.config.steps), title: "新步骤", type: "options", required: true, enabled: true, sortOrder: Math.max(-1, ...next.config.steps.map((step) => step.sortOrder)) + 1, optionGroups: [] }));
+    update((next) => next.config.steps.push({ id, code: createUniqueCode("step"), title: "新步骤", type: "options", required: true, enabled: true, sortOrder: Math.max(-1, ...next.config.steps.map((step) => step.sortOrder)) + 1, optionGroups: [] }));
     expand(setOpenSteps, id);
   }
   function addGroup(stepId: string) {
-    const code = codeFor("group", draft.config.steps.flatMap((step) => step.optionGroups));
+    const code = createUniqueCode("group");
     const id = crypto.randomUUID();
-    stepChange(stepId, (step) => step.optionGroups.push({ id, code, title: "新选项组", displayStyle: "text", required: true, enabled: true, sortOrder: Math.max(-1, ...step.optionGroups.map((group) => group.sortOrder)) + 1, options: [createOption([])] }));
+    const previewLayerOrder = Math.max(-1, ...draft.config.steps.flatMap((step) => step.optionGroups).map((group) => group.previewLayerOrder)) + 1;
+    stepChange(stepId, (step) => step.optionGroups.push({ id, code, title: "新选项组", displayStyle: "text", required: true, enabled: true, sortOrder: Math.max(-1, ...step.optionGroups.map((group) => group.sortOrder)) + 1, previewEnabled: false, previewLayerOrder, options: [createOption([])] }));
     expand(setOpenGroups, id);
   }
   function createOption(options: CustomizationOption[]): CustomizationOption {
-    return { id: crypto.randomUUID(), code: codeFor("option", options), name: "新选项", sortOrder: Math.max(-1, ...options.map((option) => option.sortOrder)) + 1, enabled: true, defaultSelected: false, applicableCategories: [draft.category], affectsPrice: false };
+    return { id: crypto.randomUUID(), code: createUniqueCode("option"), name: "新选项", sortOrder: Math.max(-1, ...options.map((option) => option.sortOrder)) + 1, enabled: true, defaultSelected: false, applicableCategories: [draft.category], affectsPrice: false };
   }
   function addOption(groupId: string) {
     groupChange(groupId, (group) => group.options.push(createOption(group.options)));
@@ -63,7 +64,13 @@ export function TemplateSteps({ draft, disabled, onDraft, onImagePending }: {
     if ((step.optionGroups.length || step.embroidery) && !confirm("切换步骤类型将清除此步骤中的选项组或刺绣配置，是否继续？")) return;
     stepChange(step.id, (item) => {
       item.type = type; item.optionGroups = []; delete item.textInput; delete item.embroidery;
-      if (type === "embroidery") { item.textInput = { minLength: 1, maxLength: 20, placeholder: "请输入刺绣文字", characterPolicy: "unicode_text" }; item.embroidery = structuredClone(DEFAULT_EMBROIDERY_CONFIG); }
+      if (type === "embroidery") {
+        item.textInput = { minLength: 1, maxLength: 20, placeholder: "请输入刺绣文字", characterPolicy: "unicode_text" };
+        item.embroidery = structuredClone(DEFAULT_EMBROIDERY_CONFIG);
+        item.embroidery.positions.forEach((choice) => { choice.code = createUniqueCode("position"); });
+        item.embroidery.fonts.forEach((choice) => { choice.code = createUniqueCode("font"); });
+        item.embroidery.colors.forEach((choice) => { choice.code = createUniqueCode("color"); });
+      }
     });
   }
   function relocate(groupId: string, targetId: string) {
@@ -77,8 +84,29 @@ export function TemplateSteps({ draft, disabled, onDraft, onImagePending }: {
       target.optionGroups.push(group);
     });
   }
+  function togglePreview(groupId: string, enabled: boolean) {
+    update((next) => {
+      const groups = next.config.steps.flatMap((step) => step.optionGroups);
+      const group = groups.find((item) => item.id === groupId);
+      if (!group) return;
+      group.previewEnabled = enabled;
+      if (enabled) group.previewLayerOrder = Math.max(-1, ...groups.filter((item) => item.previewEnabled && item.id !== groupId).map((item) => item.previewLayerOrder)) + 1;
+    });
+  }
+  function reorderPreview(targetId: string) {
+    if (!draggingLayer || draggingLayer === targetId) return;
+    update((next) => {
+      const groups = next.config.steps.flatMap((step) => step.optionGroups).filter((group) => group.previewEnabled).sort((a, b) => a.previewLayerOrder - b.previewLayerOrder);
+      const source = groups.findIndex((group) => group.id === draggingLayer), target = groups.findIndex((group) => group.id === targetId);
+      if (source < 0 || target < 0) return;
+      const [moved] = groups.splice(source, 1); groups.splice(target, 0, moved);
+      groups.forEach((group, index) => { group.previewLayerOrder = index; });
+    });
+    setDraggingLayer(null);
+  }
   const steps = ordered(draft.config.steps);
   return <ImagePickerPendingContext.Provider value={onImagePending}><fieldset className="mtm-step-editor" disabled={disabled}>
+    <PreviewConfiguration draft={draft} onDraft={update} draggingLayer={draggingLayer} onDrag={setDraggingLayer} onDrop={reorderPreview}/>
     <div className="section-title"><h4>步骤 → 选项组 → 选项</h4><button type="button" className="secondary" onClick={addStep}>＋ 添加步骤</button></div>
     <p className="section-help">消费者一页一个步骤。步骤内可配置多个独立单选组；样式属于选项组，标签仅展示、不影响价格。</p>
     <p className="section-help">图片通过 Shopify 原生素材选择器管理。步骤默认大图可不填；图文／图标组的启用选项发布时必须有展示素材。</p>
@@ -97,7 +125,6 @@ export function TemplateSteps({ draft, disabled, onDraft, onImagePending }: {
         <Field label="步骤说明"><input value={step.description ?? ""} onChange={(event) => stepChange(step.id, (item) => { item.description = event.target.value; })}/></Field>
       </div>
       <label className="check-row"><input type="checkbox" checked={step.enabled} onChange={(event) => stepChange(step.id, (item) => { item.enabled = event.target.checked; })}/>启用步骤</label>
-      <ImageField label="步骤默认大图" image={step.defaultPreviewImage} onChange={(image) => stepChange(step.id, (item) => { item.defaultPreviewImage = image; })}/>
       {step.type === "embroidery" && <EmbroideryFields config={step.textInput} embroidery={step.embroidery} onTextChange={(textInput) => stepChange(step.id, (item) => { item.textInput = textInput; })} onEmbroideryChange={(embroidery) => stepChange(step.id, (item) => { item.embroidery = embroidery; })}/>}
       {step.type === "options" && <>
         <div className="mtm-editor-heading"><strong>选项组（{step.optionGroups.length}）</strong><button type="button" className="secondary" onClick={() => addGroup(step.id)}>＋ 添加选项组</button></div>
@@ -110,9 +137,9 @@ export function TemplateSteps({ draft, disabled, onDraft, onImagePending }: {
             <Field label="所属步骤"><select value={step.id} onChange={(event) => relocate(group.id, event.target.value)}>{steps.filter((entry) => entry.type === "options").map((entry) => <option key={entry.id} value={entry.id}>{entry.title}</option>)}</select></Field>
             <Field label="组说明"><input value={group.description ?? ""} onChange={(event) => groupChange(group.id, (item) => { item.description = event.target.value; })}/></Field>
           </div>
-          <div className="check-row"><label><input type="checkbox" checked={group.enabled} onChange={(event) => groupChange(group.id, (item) => { item.enabled = event.target.checked; })}/>启用组</label><label><input type="checkbox" checked={group.required} onChange={(event) => groupChange(group.id, (item) => { item.required = event.target.checked; })}/>必选</label></div>
+          <div className="check-row"><label><input type="checkbox" checked={group.enabled} onChange={(event) => groupChange(group.id, (item) => { item.enabled = event.target.checked; })}/>启用组</label><label><input type="checkbox" checked={group.required} onChange={(event) => groupChange(group.id, (item) => { item.required = event.target.checked; })}/>必选</label><label><input type="checkbox" checked={group.previewEnabled} onChange={(event) => togglePreview(group.id, event.target.checked)}/>参与合图</label></div>
           <div className="mtm-editor-heading"><span>候选选项</span><button type="button" className="secondary" onClick={() => addOption(group.id)}>＋ 添加选项</button></div>
-          {group.displayStyle !== "text" && <p className="section-help">{group.displayStyle === "icon_text" ? "请在每个选项下选择图标素材" : "请在每个选项下选择展示图片"}，同组样式统一，素材分别配置。选中后预览大图单独设置。</p>}
+          {group.displayStyle !== "text" && <p className="section-help">{group.displayStyle === "icon_text" ? "请在每个选项下选择图标素材" : "请在每个选项下选择展示图片"}，同组样式统一，素材分别配置。</p>}
           {ordered(group.options).map((option, optionIndex) => <div className="mtm-option-card" key={option.id}>
             <div className="mtm-editor-heading"><strong>{option.name}</strong><div className="actions"><OrderButtons index={optionIndex} count={group.options.length} onMove={(delta) => groupChange(group.id, (item) => move(item.options, option.id, delta))}/><button type="button" className="link danger-text" onClick={() => { if (confirm(`删除选项“${option.name}”？`)) groupChange(group.id, (item) => { item.options = item.options.filter((entry) => entry.id !== option.id); }); }}>删除选项</button></div></div>
             <div className="mtm-editor-grid">
@@ -125,12 +152,11 @@ export function TemplateSteps({ draft, disabled, onDraft, onImagePending }: {
             <div className="check-row"><label><input type="checkbox" checked={option.enabled} onChange={(event) => optionChange(group.id, option.id, (item) => { item.enabled = event.target.checked; if (!item.enabled) item.defaultSelected = false; })}/>启用选项</label><label><input type="checkbox" checked={option.defaultSelected} disabled={!option.enabled} onChange={(event) => groupChange(group.id, (item) => { item.options.forEach((entry) => { if (entry.id === option.id) entry.defaultSelected = event.target.checked; else if (event.target.checked) entry.defaultSelected = false; }); })}/>默认选中</label><span className="fixed-rule">不影响价格</span></div>
             <div className="mtm-editor-grid">
               {group.displayStyle !== "text" && <ImageField label={group.displayStyle === "icon_text" ? "选项图标" : "选项展示图片"} required={option.enabled && group.enabled && step.enabled} image={option.displayImage} onChange={(image) => optionChange(group.id, option.id, (item) => { item.displayImage = image; })}/>}
-              <ImageField label="选中后预览大图" image={option.previewImage} onChange={(image) => optionChange(group.id, option.id, (item) => { item.previewImage = image; })}/>
+              {draft.config.previewMode === "layered" && group.previewEnabled && <div><label className="check-row"><input type="checkbox" checked={option.previewLayer?.type === "empty"} onChange={(event) => optionChange(group.id, option.id, (item) => { item.previewLayer = event.target.checked ? { type: "empty" } : undefined; })}/>无视觉变化</label>{option.previewLayer?.type !== "empty" && <ImageField label="透明合图图层" required={option.enabled && group.enabled && step.enabled} image={option.previewLayer?.type === "image" ? option.previewLayer.image : undefined} onChange={(image) => optionChange(group.id, option.id, (item) => { item.previewLayer = image ? { type: "image", image } : undefined; })}/>}</div>}
             </div>
           </div>)}
           {!group.options.length && <p className="section-help">暂无选项，请点击“＋ 添加选项”配置文字及图片；空组不会在消费者端显示。</p>}
         </section>)}
-        <StepPreview key={`${draft.id}:${step.id}`} step={step}/>
       </>}
     </section>)}
   </fieldset></ImagePickerPendingContext.Provider>;
@@ -167,7 +193,7 @@ function EmbroideryChoiceEditor({ label, prefix, choices, showDescription = fals
     onChange(next);
   };
   return <section className="mtm-group-card">
-    <div className="mtm-editor-heading"><strong>{label}（{choices.length}）</strong><button type="button" className="secondary" onClick={() => onChange([...choices, { code: codeFor(prefix, choices), name: "新选项" }])}>＋ 添加</button></div>
+    <div className="mtm-editor-heading"><strong>{label}（{choices.length}）</strong><button type="button" className="secondary" onClick={() => onChange([...choices, { code: createUniqueCode(prefix), name: "新选项" }])}>＋ 添加</button></div>
     {choices.map((choice, index) => <div className="mtm-option-card" key={index}>
       <div className="mtm-editor-grid">
         <Field label="选项名称"><input value={choice.name} onChange={(event) => update(index, { name: event.target.value })}/></Field>
@@ -180,23 +206,36 @@ function EmbroideryChoiceEditor({ label, prefix, choices, showDescription = fals
   </section>;
 }
 
-function StepPreview({ step }: { step: CustomizationStep }) {
+function PreviewConfiguration({ draft, onDraft, draggingLayer, onDrag, onDrop }: {
+  draft: TemplateView;
+  onDraft: (operation: (draft: TemplateView) => void) => void;
+  draggingLayer: string | null;
+  onDrag: (id: string | null) => void;
+  onDrop: (id: string) => void;
+}) {
   const [choices, setChoices] = useState<Record<string, string>>({});
-  const [last, setLast] = useState<{ group: string; option: string } | null>(null);
-  const groups = ordered(step.optionGroups).filter((group) => group.enabled && group.options.some((option) => option.enabled));
-  const selected = last && groups.find((group) => group.id === last.group)?.options.find((option) => option.id === last.option && option.enabled);
-  const preview = selected && selected.previewImage || step.defaultPreviewImage;
-  return <details className="mtm-step-preview"><summary>预览本步骤（仅后台预览，不保存试选结果）</summary>
-    {!step.enabled ? <p>步骤已停用，消费者端不显示。</p> : <>
-      {preview && <img className="mtm-preview-hero" src={preview.url} alt={preview.alt || step.title}/>}
-      {!groups.length && <p>没有启用的可选组，消费者端将跳过此步骤。</p>}
-      {groups.map((group) => <div key={group.id}><h4>{group.title}{group.required ? " *" : ""}</h4><p>{group.description}</p>{ordered(group.options).filter((option) => option.enabled).map((option) => {
-        const choice = group.options.find((entry) => entry.id === choices[group.id] && entry.enabled)?.id ?? group.options.find((entry) => entry.enabled && entry.defaultSelected)?.id;
-        return <button type="button" key={option.id} className={`mtm-preview-option ${group.displayStyle}`} aria-pressed={choice === option.id} onClick={() => { setChoices((current) => ({ ...current, [group.id]: option.id })); setLast({ group: group.id, option: option.id }); }}>
-          {group.displayStyle !== "text" && option.displayImage && <img src={option.displayImage.url} alt={option.displayImage.alt}/>}
-          <span><strong>{option.name}</strong>{option.badge?.text.trim() && <span className="mtm-discount-badge">{option.badge.text}</span>}<small>{option.description}</small></span><span aria-hidden="true">{choice === option.id ? "✓" : ""}</span>
-        </button>;
-      })}</div>)}
+  const groups = draft.config.steps.flatMap((step) => step.optionGroups).filter((group) => group.previewEnabled).sort((a, b) => a.previewLayerOrder - b.previewLayerOrder);
+  const selectedLayers = groups.flatMap((group) => {
+    const selectedId = choices[group.id] ?? group.options.find((option) => option.enabled && option.defaultSelected)?.id;
+    const option = group.options.find((item) => item.id === selectedId && item.enabled);
+    return option?.previewLayer?.type === "image" ? [{ group, option, image: option.previewLayer.image }] : [];
+  });
+  const setMode = (mode: "none" | "layered") => onDraft((next) => { next.config.previewMode = mode; });
+  return <section className="mtm-preview-config">
+    <div className="section-title"><h4>模板预览</h4></div>
+    <p className="section-help">预览属于单品模板并跨步骤累计。步骤只组织操作流程，不影响图层顺序。</p>
+    <Field label="预览模式"><select value={draft.config.previewMode} onChange={(event) => setMode(event.target.value as "none" | "layered")}><option value="none">固定展示图</option><option value="layered">分层合图</option></select></Field>
+    {draft.config.previewMode === "none" ? <>
+      <ImageField label="模板固定展示图" image={draft.config.previewDisplayImage} onChange={(image) => onDraft((next) => { next.config.previewDisplayImage = image; })}/>
+      <p className="section-help">未配置时，消费者端回退 Shopify 商品图。</p>
+    </> : <>
+      <ImageField label="单品合图底图" required image={draft.config.previewCanvas?.baseImage} onChange={(image) => onDraft((next) => { next.config.previewCanvas = image ? { baseImage: image } : undefined; })}/>
+      {draft.config.previewCanvas?.baseImage && <p className="section-help">画布尺寸：{draft.config.previewCanvas.baseImage.width ?? "未知"} × {draft.config.previewCanvas.baseImage.height ?? "未知"}，其他图层尺寸由素材人员保证。</p>}
+      <div className="mtm-layer-layout">
+        <div><strong>合图层顺序</strong>{groups.length ? groups.map((group) => <div key={group.id} draggable className={`mtm-layer-row${draggingLayer === group.id ? " dragging" : ""}`} onDragStart={() => onDrag(group.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => onDrop(group.id)} onDragEnd={() => onDrag(null)}><span aria-hidden="true">⋮⋮</span><strong>{group.title}</strong><small>{group.code}</small></div>) : <p className="section-help">请在下方选项组中开启“参与合图”。</p>}</div>
+        <div><strong>合图预览</strong>{groups.map((group) => <Field key={group.id} label={group.title}><select value={choices[group.id] ?? group.options.find((option) => option.enabled && option.defaultSelected)?.id ?? ""} onChange={(event) => setChoices((current) => ({ ...current, [group.id]: event.target.value }))}><option value="">不选择</option>{ordered(group.options).filter((option) => option.enabled).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></Field>)}</div>
+      </div>
+      {draft.config.previewCanvas?.baseImage ? <div className="mtm-layer-preview" style={{ aspectRatio: `${draft.config.previewCanvas.baseImage.width ?? 1} / ${draft.config.previewCanvas.baseImage.height ?? 1}` }}><img src={draft.config.previewCanvas.baseImage.url} alt={draft.config.previewCanvas.baseImage.alt || draft.name}/>{selectedLayers.map(({ group, option, image }) => <img key={group.id} src={image.url} alt={image.alt || option.name}/>)}</div> : <p className="section-help">选择底图后可预览图层叠加效果。</p>}
     </>}
-  </details>;
+  </section>;
 }

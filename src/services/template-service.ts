@@ -1,4 +1,4 @@
-import { garmentCategoryLabels, type TemplateConfig } from "@/src/domain";
+import { garmentCategoryLabels, regenerateTemplateIdentifiers, type TemplateConfig } from "@/src/domain";
 import { ensureUnique, validateStepStructure } from "@/src/domain/template-rules";
 import { templateView } from "@/src/domain/models";
 import { parseStoredTemplateConfig } from "@/src/schemas/template";
@@ -46,7 +46,11 @@ async function validateCategories(category: string, config: TemplateConfig) {
 }
 
 export async function getTemplates() { return (await templates.listTemplates()).map(templateView); }
-export async function createTemplate(input: Parameters<typeof templates.createTemplate>[0]) { await validateCategories(input.category,input.config); return templateView(await templates.createTemplate(input)); }
+export async function createTemplate(input: Parameters<typeof templates.createTemplate>[0]) {
+  const normalized = { ...input, config: regenerateTemplateIdentifiers(input.config) };
+  await validateCategories(normalized.category, normalized.config);
+  return templateView(await templates.createTemplate(normalized));
+}
 export async function saveTemplate(id: string, input: SaveTemplateInput) {
   await validateCategories(input.category,input.config);
   const row = await templates.updateTemplate(id, input);

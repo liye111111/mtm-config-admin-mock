@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createEmptyTemplateConfig, measurementFieldSchema, templateConfigSchema } from "../src/schemas/template.ts";
 import { validateStepStructure, validateOptionSelections } from "../src/domain/template-rules.ts";
+import { createUniqueCode, regenerateTemplateIdentifiers } from "../src/domain/code.ts";
 import { parseValidateConfiguration } from "../src/schemas/storefront.ts";
 import { parseShopifyImages, canonicalizeTemplateImages } from "../src/services/template-media-service.ts";
 import { GET, POST } from "../app/api/templates/route.ts";
@@ -16,7 +17,7 @@ const image = { fileId, url: "https://cdn.shopify.com/test.jpg", alt: "领型", 
 const option = (code) => ({ id: code, code, name: code, enabled: true, defaultSelected: false, sortOrder: 0, applicableCategories: ["jacket"], affectsPrice: false });
 function config() {
   return { ...createEmptyTemplateConfig(), steps: [{ id: "detail", code: "detail", title: "西服细节", type: "options", required: true, enabled: true, sortOrder: 0,
-    optionGroups: ["lapel", "pocket", "lining"].map((code, index) => ({ id: code, code, title: code, displayStyle: "text", required: true, enabled: true, sortOrder: index, options: [option(`${code}_one`), option(`${code}_two`)] })),
+    optionGroups: ["lapel", "pocket", "lining"].map((code, index) => ({ id: code, code, title: code, displayStyle: "text", required: true, enabled: true, sortOrder: index, previewEnabled: false, previewLayerOrder: index, options: [option(`${code}_one`), option(`${code}_two`)] })),
   }] };
 }
 const request = (path, method = "GET", body) => new Request(`http://localhost${path}`, { method, headers: { "X-MTM-Mock-Shopify": "1", "Content-Type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
@@ -48,6 +49,18 @@ test("展示素材允许存草稿，但图文／图标组选项发布必填", ()
     data.steps[0].optionGroups[0].enabled = false;
     validateStepStructure(data, true);
   }
+});
+test("分层合图发布要求底图，参与组的选项必须配置图片或明确无视觉变化", () => {
+  const data = config();
+  data.previewMode = "layered";
+  data.steps[0].optionGroups[0].previewEnabled = true;
+  assert.doesNotThrow(() => validateStepStructure(data));
+  assert.throws(() => validateStepStructure(data, true), /单品底图/);
+  data.previewCanvas = { baseImage: image };
+  assert.throws(() => validateStepStructure(data, true), /缺少合图设置/);
+  data.steps[0].optionGroups[0].options[0].previewLayer = { type: "image", image };
+  data.steps[0].optionGroups[0].options[1].previewLayer = { type: "empty" };
+  assert.doesNotThrow(() => validateStepStructure(data, true));
 });
 test("组编码跨步骤唯一、默认选项互斥、特殊步骤不能混入组", () => {
   const data = config(); data.steps.push({ ...structuredClone(data.steps[0]), id: "next", code: "next" });
@@ -147,8 +160,30 @@ test("保存素材使用服务端查询结果，覆盖伪造 URL（全部网络�
     return Response.json(responseFor(JSON.parse(init.body).variables.ids));
   };
   try {
-    const data = config(); data.steps[0].defaultPreviewImage = { ...image, url: "https://invalid.example/forged.jpg" };
+    const data = config(); data.previewMode = "layered"; data.previewCanvas = { baseImage: { ...image, url: "https://invalid.example/forged.jpg" } };
+    data.steps[0].optionGroups[0].previewEnabled = true;
+    data.steps[0].optionGroups[0].options[0].previewLayer = { type: "image", image: { ...image, url: "https://invalid.example/layer.jpg" } };
     const canonical = await canonicalizeTemplateImages(req, env.SHOPIFY_STORE, data);
-    assert.equal(canonical.steps[0].defaultPreviewImage.url, image.url);
+    assert.equal(canonical.previewCanvas.baseImage.url, image.url);
+    assert.equal(canonical.steps[0].optionGroups[0].options[0].previewLayer.image.url, image.url);
   } finally { globalThis.fetch = originalFetch; }
+});
+
+test("新增编码使用类型前缀和全局唯一值，复制模板重建内部标识", () => {
+  const codes = Array.from({ length: 100 }, () => createUniqueCode("option"));
+  assert.equal(new Set(codes).size, codes.length);
+  assert.ok(codes.every((code) => /^option_[a-f0-9]{32}$/.test(code)));
+
+  const source = config();
+  source.steps[0].embroidery = { positions: [{ code: "left", name: "左侧" }], fonts: [], colors: [] };
+  source.measurementBlocks = [{ id: "body", code: "body", name: "身体", applicableCategories: ["jacket"], enabled: true, sortOrder: 0, fields: [{ id: "chest", attributeId: "measurement:test:chest", inputUnit: "CM", required: true, enabled: true, sortOrder: 0 }] }];
+  const copy = regenerateTemplateIdentifiers(source);
+
+  assert.notEqual(copy.steps[0].id, source.steps[0].id);
+  assert.notEqual(copy.steps[0].code, source.steps[0].code);
+  assert.notEqual(copy.steps[0].optionGroups[0].code, source.steps[0].optionGroups[0].code);
+  assert.notEqual(copy.steps[0].optionGroups[0].options[0].code, source.steps[0].optionGroups[0].options[0].code);
+  assert.notEqual(copy.steps[0].embroidery.positions[0].code, source.steps[0].embroidery.positions[0].code);
+  assert.notEqual(copy.measurementBlocks[0].code, source.measurementBlocks[0].code);
+  assert.equal(source.steps[0].code, "detail");
 });

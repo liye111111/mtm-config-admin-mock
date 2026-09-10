@@ -11,7 +11,7 @@ test('补齐组合入口保留独立步骤、量体配置，重复执行不重�
   ensureComponentsStep(config);ensureComponentsStep(config);
   assert.equal(config.steps.length,4);
   assert.equal(config.steps[0].type,'components');
-  assert.equal(config.steps[0].code,'components_1');
+  assert.match(config.steps[0].code,/^step_[a-f0-9]{32}$/);
   assert.deepEqual(config.steps.slice(1),original);
   templateConfigSchema.parse(config);
   config.steps[0].enabled=false;

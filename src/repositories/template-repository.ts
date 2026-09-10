@@ -1,5 +1,5 @@
 import type { SaveTemplateInput } from "@/src/schemas/template";
-import { TEMPLATE_SCHEMA_VERSION, type TemplateConfig, type TemplateRow, type TemplateVersionRow } from "@/src/domain";
+import { createUniqueCode, TEMPLATE_SCHEMA_VERSION, type TemplateConfig, type TemplateRow, type TemplateVersionRow } from "@/src/domain";
 import { database, ensureDatabase } from "./database";
 
 const templateSelect="SELECT t.*,c.name category_label FROM templates t LEFT JOIN template_categories c ON c.code=t.category";
@@ -19,7 +19,7 @@ export async function findPublishedTemplateForProduct(shopId: string, productId:
     .bind(shopId, productId, TEMPLATE_SCHEMA_VERSION).first<TemplateRow>();
 }
 export async function createTemplate(input: { name: string; category: string; config: TemplateConfig }) {
-  await ensureDatabase(); const id = crypto.randomUUID(), now = new Date().toISOString(), code = `template_${Date.now()}`;
+  await ensureDatabase(); const id = crypto.randomUUID(), now = new Date().toISOString(), code = createUniqueCode("template");
   await database().prepare("INSERT INTO templates (id,code,name,category,status,version,schema_version,config_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)").bind(id, code, input.name, input.category, "draft", 1, TEMPLATE_SCHEMA_VERSION, JSON.stringify(input.config), now, now).run();
   return (await findTemplate(id))!;
 }

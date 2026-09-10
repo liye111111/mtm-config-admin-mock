@@ -1,17 +1,19 @@
 # 模板 Schema v3 后台与 API
 
-日期：2026-08-31。状态：后台本地实现，未部署，Theme 尚未适配 v3。
+日期：2026-08-31，2026-09-10 更新分层预览合图。状态：后台与 Theme 已本地实现，未部署、未完成真实店铺联调。
 
 ## 模型与管理流程
 
 统一层级为 `steps → optionGroups → options`。步骤代表消费者一页；每个组单选、独立必填，组在同一模板内使用唯一编码。后台支持步骤、组、选项增删与上下移动，以及组跨步骤移动；按稳定 ID 更新，移动不会改变组和选项编码。
 
-- 步骤：`defaultPreviewImage` 可选，作为默认大图。
-- 组：`displayStyle` 为 `image_text`、`text`、`icon_text`，对应图文、文本、图标＋文本。
-- 选项：`displayImage` 为缩略图／图标，`previewImage` 为独立预览大图；`badge` 为可选的 `{ "type": "discount", "text": "10% Sale" }`。标签只展示，`affectsPrice` 固定为 `false`。
+- 模板：`previewMode` 为 `none` 或 `layered`。固定展示模式使用可选的 `previewDisplayImage`，缺失时 Theme 回退 Shopify 商品图；分层模式使用 `previewCanvas.baseImage` 作为单品底图。
+- 步骤：只组织消费者操作流程，不再持有预览图，也不影响合图层顺序。
+- 组：`displayStyle` 为 `image_text`、`text`、`icon_text`；`previewEnabled` 控制是否参与合图，`previewLayerOrder` 是跨步骤的全局图层顺序。
+- 选项：`displayImage` 为缩略图／图标；`previewLayer` 明确保存 `{ "type": "image", "image": ImageReference }` 或 `{ "type": "empty" }`。`badge` 仅展示，`affectsPrice` 固定为 `false`。
 - 素材引用：`{ fileId, url, alt, width?, height? }`。通过原生文件选择器创建，保存与发布时服务端重新查询当前店铺并覆盖客户端 URL、描述和尺寸。
 - 图文／图标组中启用的选项，在组及步骤均启用时，发布必须有展示素材；草稿允许缺图。停用整个组或步骤不会阻止发布。
-- 后台试选预览展示三种卡片和标签，点击选项切换大图；默认大图缺失可隐藏。试选结果不作为模板选择数据保存。
+- 后台提供模板级合图配置、跨步骤图层拖拽排序和试选预览。试选结果不作为模板选择数据保存。
+- 分层模板发布时必须有底图；参与合图的启用选项必须配置图片或明确标记“无视觉变化”。一期不自动校验图片尺寸一致性。
 - 普通组选项不再支持 v2 的色卡、下拉、普通文本输入展示类型；刺绣保留独立文字输入规则及字典。
 - 不增加 A／C／E 标记，不录入开衩，不建设实际折扣计算。
 
@@ -41,7 +43,7 @@
 
 ## 模板与 Storefront 契约
 
-创建、保存、发布的路径不变。`config.schemaVersion` 必须为 `3`；步骤必须包含 `optionGroups`，不接受旧的直接 `options`、`displayType` 等字段。重复组编码、系统保留编码、重复选项编码和多个启用默认值均拒绝。
+创建、保存、发布的路径不变。`config.schemaVersion` 必须为 `3`；本次直接调整 v3，不保留旧 `defaultPreviewImage`、`previewImage` 整图切换语义。步骤必须包含 `optionGroups`，不接受旧的直接 `options`、`displayType` 等字段。重复组编码、系统保留编码、重复选项编码、重复合图层顺序和多个启用默认值均拒绝。
 
 Storefront 配置响应保持 `enabled + configuration` 外层结构，内部为 v3。校验及实例创建请求新增必传 `schemaVersion: 3`，选择键改为组编码：
 
