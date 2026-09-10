@@ -14,6 +14,7 @@ export type TextInputConfig = {
 export type EmbroideryChoice = {
   code: string;
   name: string;
+  description?: string;
 };
 
 export type EmbroideryConfig = {
@@ -29,9 +30,9 @@ export const DEFAULT_EMBROIDERY_CONFIG: EmbroideryConfig = {
     { code: "right_cuff", name: "右袖口" },
   ],
   fonts: [
-    { code: "standard", name: "标准体" },
-    { code: "script", name: "手写体" },
-    { code: "serif", name: "衬线体" },
+    { code: "standard", name: "标准体", description: "字形端正规整，清晰易读，适合姓名、缩写及正式场合。" },
+    { code: "script", name: "手写体", description: "线条自然流畅，风格更具个性，适合英文姓名及字母组合。" },
+    { code: "serif", name: "衬线体", description: "笔画带有装饰衬线，呈现经典、优雅的视觉效果。" },
   ],
   colors: [
     { code: "black", name: "黑色" },

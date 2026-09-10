@@ -357,22 +357,13 @@ query ProductForBinding($id: ID!) {
     variantsCount {
       count
     }
-    variants(first: 10) {
-      nodes {
-        id
-        legacyResourceId
-        sku
-        title
-        availableForSale
-      }
-    }
     onlineStoreUrl
     updatedAt
   }
 }
 ```
 
-若 Variant 总数超过首批查询数量，至少需要可靠判断是否存在可用于加购的 Variant，不要求将全部 Variant 缓存到 D1。
+绑定阶段只缓存 Variant 数量用于管理端展示，不读取库存或 Variant 可售状态。实际加购时由 Shopify 校验所选 Variant 是否可售。
 
 ## 12. 保存校验
 
@@ -438,7 +429,6 @@ Shopify Embedded Admin + App Bridge 可用
 | Product 已绑定 | `409` | 该商品已经绑定定制模板 |
 | 模板版本已失效 | `409` | 模板版本已变化，请重新选择 |
 | 商品与模板类型不匹配 | `422` | 普通套装必须绑定组合模板 |
-| 没有可用 Variant | `422` | 商品没有可用于加购的 Variant |
 | Shopify API 暂时失败 | `502` | 无法读取 Shopify 商品，请稍后重试 |
 | 超过 Shopify API 限流 | `429/503` | Shopify 请求繁忙，请稍后重试 |
 

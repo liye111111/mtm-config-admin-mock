@@ -172,7 +172,7 @@ Webhook 接收端必须：
 
 ### 7.1 查询单品或套装 Product/Variant
 
-用途：管理端绑定商品时校验 ID、标题、发布状态和 Variant。
+用途：管理端绑定商品时校验 ID、标题和发布状态，并缓存 Variant 数量；绑定不校验库存或 Variant 可售状态。
 
 ```graphql
 query ProductForBinding($id: ID!) {
@@ -181,13 +181,8 @@ query ProductForBinding($id: ID!) {
     title
     handle
     status
-    variants(first: 100) {
-      nodes {
-        id
-        title
-        sku
-        price
-      }
+    variantsCount {
+      count
     }
   }
 }
@@ -197,12 +192,12 @@ query ProductForBinding($id: ID!) {
 
 ### 7.2 套装商品与逻辑组件校验
 
-发布组合模板或同步商品绑定时，只校验 Shopify 中存在可销售的普通套装 Product/Variant。上衣、西裤、马甲等逻辑组件完全由已发布模板定义，不调用 Shopify Bundle API，也不要求逻辑组件具备 Shopify Product ID。
+发布组合模板或同步商品绑定时，只校验 Shopify 中存在对应的普通套装 Product，不校验实时库存或 Variant 可售状态。上衣、西裤、马甲等逻辑组件完全由已发布模板定义，不调用 Shopify Bundle API，也不要求逻辑组件具备 Shopify Product ID。
 
 校验规则：
 
 - 商品绑定指向的普通套装 Product 存在且状态满足发布要求；
-- 至少存在一个可用于加购的套装 Variant；
+- 商品库存及 Variant 可售状态不影响绑定，由 Shopify 在消费者实际加购时校验；
 - 两件套、三件套分别绑定结构匹配的组合模板；
 - 每个启用的逻辑组件编码唯一，且其 `childTemplateId` 指向可用的单品模板；
 - 定制实例必须包含组合模板要求的全部必需逻辑组件；

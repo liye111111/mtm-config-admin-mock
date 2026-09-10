@@ -151,13 +151,13 @@ function EmbroideryFields({ config, embroidery, onTextChange, onEmbroideryChange
     <p className="section-help">三类选项均为可选配置；消费者端只显示有配置的类型。编码用于保存订单数据，发布后请勿随意修改。</p>
     <div className="mtm-embroidery-choice-list">
       <EmbroideryChoiceEditor label="刺绣位置" prefix="position" choices={dictionaries.positions} onChange={(positions) => onEmbroideryChange({ ...dictionaries, positions })}/>
-      <EmbroideryChoiceEditor label="刺绣字体" prefix="font" choices={dictionaries.fonts} onChange={(fonts) => onEmbroideryChange({ ...dictionaries, fonts })}/>
+      <EmbroideryChoiceEditor label="刺绣字体" prefix="font" choices={dictionaries.fonts} showDescription onChange={(fonts) => onEmbroideryChange({ ...dictionaries, fonts })}/>
       <EmbroideryChoiceEditor label="刺绣颜色" prefix="color" choices={dictionaries.colors} onChange={(colors) => onEmbroideryChange({ ...dictionaries, colors })}/>
     </div>
   </div>;
 }
 
-function EmbroideryChoiceEditor({ label, prefix, choices, onChange }: { label: string; prefix: string; choices: EmbroideryChoice[]; onChange: (choices: EmbroideryChoice[]) => void }) {
+function EmbroideryChoiceEditor({ label, prefix, choices, showDescription = false, onChange }: { label: string; prefix: string; choices: EmbroideryChoice[]; showDescription?: boolean; onChange: (choices: EmbroideryChoice[]) => void }) {
   const update = (index: number, change: Partial<EmbroideryChoice>) => onChange(choices.map((choice, position) => position === index ? { ...choice, ...change } : choice));
   const relocate = (index: number, delta: number) => {
     const target = index + delta;
@@ -172,6 +172,7 @@ function EmbroideryChoiceEditor({ label, prefix, choices, onChange }: { label: s
       <div className="mtm-editor-grid">
         <Field label="选项名称"><input value={choice.name} onChange={(event) => update(index, { name: event.target.value })}/></Field>
         <Field label="选项编码"><input value={choice.code} onChange={(event) => update(index, { code: event.target.value })}/></Field>
+        {showDescription && <Field label="字体说明（留空不显示）"><textarea rows={2} maxLength={200} value={choice.description ?? ""} onChange={(event) => update(index, { description: event.target.value || undefined })}/></Field>}
       </div>
       <div className="actions"><button type="button" className="link" disabled={index === 0} onClick={() => relocate(index, -1)}>↑ 上移</button><button type="button" className="link" disabled={index === choices.length - 1} onClick={() => relocate(index, 1)}>↓ 下移</button><button type="button" className="link danger-text" onClick={() => onChange(choices.filter((_, position) => position !== index))}>删除</button></div>
     </div>)}

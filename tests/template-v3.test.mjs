@@ -66,6 +66,14 @@ test("刺绣位置、字体和颜色允许按模板选择性配置", () => {
   const parsed = templateConfigSchema.parse(data);
   assert.doesNotThrow(() => validateStepStructure(parsed, true));
 });
+test("刺绣字体说明可选且限制为 200 个字符", () => {
+  const data = config();
+  data.steps = [{ id: "embroidery", code: "embroidery", title: "刺绣", type: "embroidery", required: false, enabled: true, sortOrder: 0, optionGroups: [],
+    textInput: { minLength: 1, maxLength: 20, characterPolicy: "unicode_text" }, embroidery: { positions: [], fonts: [{ code: "script", name: "手写体", description: "线条自然流畅" }], colors: [] } }];
+  assert.equal(templateConfigSchema.parse(data).steps[0].embroidery.fonts[0].description, "线条自然流畅");
+  data.steps[0].embroidery.fonts[0].description = "字".repeat(201);
+  assert.equal(templateConfigSchema.safeParse(data).success, false);
+});
 test("同页各组独立校验，拒绝无效／停用选项、旧键及多选", () => {
   const data = config(), choices = { lapel: "lapel_one", pocket: "pocket_two", lining: "lining_one" };
   assert.equal(validateOptionSelections(data, choices).length, 3);

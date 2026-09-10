@@ -337,7 +337,7 @@ MeasurementBlock
 #### 保存校验
 
 - Shopify Product 存在；
-- 至少存在一个可用于加购的 Variant；
+- 商品库存及 Variant 可售状态不影响绑定，由 Shopify 在消费者实际加购时校验；
 - 模板已经发布；
 - 套装商品使用组合模板；
 - 单品商品使用兼容品类模板；

@@ -45,6 +45,7 @@ export const textInputConfigSchema = z.object({
 const embroideryChoiceSchema = z.object({
   code: codeSchema,
   name: z.string().trim().min(1, "刺绣字典名称不能为空"),
+  description: z.string().trim().max(200, "刺绣选项说明不能超过 200 个字符").optional(),
 });
 
 export const embroideryConfigSchema = z.object({
