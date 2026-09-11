@@ -3,6 +3,7 @@ import type { ProductBindingRow, TemplateRow } from "./persistence";
 import type { TemplateConfig } from "./template";
 import type { BoundProductKind, ProductSyncStatus, ShopifyProductStatus } from "./product-binding";
 import { parseStoredTemplateConfig } from "@/src/schemas/template";
+import { parseStoredVariantOptionMappings, parseStoredVisibleVariantMetafields } from "@/src/schemas/product";
 
 export type { ProductBindingRow, TemplateRow, TemplateConfig };
 
@@ -39,6 +40,8 @@ export function productBindingView(row: ProductBindingRow) {
     onlineStoreUrl: row.online_store_url || undefined,
     shopifyAdminUrl: row.shopify_admin_url || undefined,
     templateId: row.template_id,
+    variantOptionMappings: parseStoredVariantOptionMappings(row.variant_option_mappings_json || "{}"),
+    visibleVariantMetafields: parseStoredVisibleVariantMetafields(row.visible_variant_metafields_json || "[]"),
     publishedVersion: row.published_version,
     enabled: row.enabled === 1,
     syncStatus: row.sync_status as ProductSyncStatus,

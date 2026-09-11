@@ -94,6 +94,10 @@ CF 对外接口、鉴权、请求响应及实施状态见 [`doc/cf-api-reference
 
 Shopify Admin Resource Picker 商品选择和模板绑定的实施任务见 [`doc/tasks/shopify-product-binding-picker.md`](doc/tasks/shopify-product-binding-picker.md)。
 
+Shopify 商品规格名称通过商品绑定的 `variantOptionMappings` 与模板稳定角色关联，不再要求名称必须为“材质”；详见 [`doc/tasks/product-binding-variant-option-mapping.md`](doc/tasks/product-binding-variant-option-mapping.md)。
+
+商品绑定页会动态读取 Shopify 的全部 `PRODUCTVARIANT` metafield definitions，并按定义类型生成每个 Variant 的编辑控件。字段值直接写回 Shopify，不复制到商品绑定记录；以后新增定义无需修改绑定页代码。
+
 Storefront 配置接口使用 `enabled + configuration` 响应；绑定停用、商品无绑定或模板未发布时返回 HTTP 200 和 `enabled:false`。
 
 POC 商品 ID 为 `10296845205799`。

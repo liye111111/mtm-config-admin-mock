@@ -2,7 +2,7 @@ import type { GarmentCategory, IsoDateTime, TemplateStatus, TemplateType } from 
 import type { DimensionFieldDefinition, MeasurementBlock } from "./measurement";
 import type { ImageReference, OptionGroup } from "./option";
 
-export type StepType = "options" | "embroidery" | "components" | "measurements" | "review";
+export type StepType = "material" | "options" | "embroidery" | "components" | "measurements" | "review";
 
 export type TextInputConfig = {
   minLength: number;

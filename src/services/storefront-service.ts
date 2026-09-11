@@ -3,13 +3,17 @@ import { templateView, type TemplateConfig } from "@/src/domain/models";
 import { AppError, NotFoundError } from "@/src/shared/errors";
 import type { CreateCustomizationInput, ValidateConfigurationInput } from "@/src/schemas/storefront";
 import * as templates from "@/src/repositories/template-repository";
+import * as products from "@/src/repositories/product-repository";
 import * as customizations from "@/src/repositories/customization-repository";
-import { verifyShopifyVariant } from "@/src/integrations/shopify-admin";
+import { getShopifyStorefrontVariantMetafields, verifyShopifyVariant } from "@/src/integrations/shopify-admin";
 import type { StorefrontIdentity } from "@/src/integrations/shopify-app-proxy";
 import { resolveMeasurementMetadata, type ResolvedTemplateConfig } from "./measurement-config-service";
+import { parseStoredVariantOptionMappings, parseStoredVisibleVariantMetafields } from "@/src/schemas/product";
+import type { VariantOptionMappings } from "@/src/domain/product-binding";
 
-async function storefrontConfiguration(shopId: string, row: NonNullable<Awaited<ReturnType<typeof templates.findPublishedTemplateForProduct>>>, productId: string) {
+async function storefrontConfiguration(shopId: string, row: NonNullable<Awaited<ReturnType<typeof templates.findPublishedTemplateForProduct>>>, productId: string, variantOptionMappings: VariantOptionMappings, visibleVariantMetafields: string[]) {
   const view = templateView(row);
+  const variantMetafields = await getShopifyStorefrontVariantMetafields(shopId, productId, visibleVariantMetafields);
   const config: ResolvedTemplateConfig & { components: Array<TemplateConfig["components"][number] & { template?: object }> } = await resolveMeasurementMetadata(shopId, view.config);
   if (config.templateType === "composite") {
     config.components = await Promise.all(config.components.map(async (component) => {
@@ -17,16 +21,16 @@ async function storefrontConfiguration(shopId: string, row: NonNullable<Awaited<
       const child = await templates.findPublishedTemplate(component.childTemplateId);
       if (!child) return component;
       const childView = templateView(child);
-      return { ...component, template: { templateId: childView.code, version: childView.version, ...await resolveMeasurementMetadata(shopId, childView.config) } };
+      return { ...component, template: { templateId: childView.code, version: childView.version, category: childView.category, ...await resolveMeasurementMetadata(shopId, childView.config) } };
     }));
   }
-  return { templateId: view.code, version: view.version, productId, ...config };
+  return { templateId: view.code, version: view.version, productId, category: view.category, variantOptionMappings, variantMetafields, ...config };
 }
 
 export async function getStorefrontConfig(shopId: string, productId: string) {
-  const row = await templates.findPublishedTemplateForProduct(shopId, productId);
-  if (!row) return { enabled: false as const, configuration: null };
-  return { enabled: true as const, configuration: await storefrontConfiguration(shopId, row, productId) };
+  const [row, binding] = await Promise.all([templates.findPublishedTemplateForProduct(shopId, productId), products.findByLegacyProductId(shopId, productId)]);
+  if (!row || !binding) return { enabled: false as const, configuration: null };
+  return { enabled: true as const, configuration: await storefrontConfiguration(shopId, row, productId, parseStoredVariantOptionMappings(binding.variant_option_mappings_json), parseStoredVisibleVariantMetafields(binding.visible_variant_metafields_json)) };
 }
 
 function record(value: unknown): Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
@@ -99,13 +103,18 @@ function validateTemplateSelections(config: ResolvedTemplateConfig, selections: 
   }
 }
 async function validateAuthoritatively(shopId: string, input: ValidateConfigurationInput) {
-  const row = await templates.findPublishedTemplateForProduct(shopId, input.productId);
-  if (!row) throw new NotFoundError("商品没有已发布的定制配置");
+  const [row, binding] = await Promise.all([templates.findPublishedTemplateForProduct(shopId, input.productId), products.findByLegacyProductId(shopId, input.productId)]);
+  if (!row || !binding) throw new NotFoundError("商品没有已发布的定制配置");
   if (input.configVersion && input.configVersion !== row.version) throw new AppError(`配置版本已更新，请刷新页面（当前 v${row.version}）`, 409);
   const config = await resolveMeasurementMetadata(shopId, templateView(row).config);
-  await verifyShopifyVariant(shopId, input.productId, input.variantId);
+  const materialRequired = config.steps.some((step) => step.enabled && step.type === "material");
+  const variant = await verifyShopifyVariant(shopId, input.productId, input.variantId, parseStoredVariantOptionMappings(binding.variant_option_mappings_json), materialRequired);
   const summary: string[] = [];
   const lineItemProperties: Record<string, string> = {};
+  if (variant.material) {
+    addReadableProperty(lineItemProperties, "材质", variant.material);
+    summary.push(variant.material);
+  }
   validateTemplateSelections(config, input.selections, summary, lineItemProperties);
   if (config.templateType === "composite") {
     const componentSelections = record(input.selections.components);
@@ -120,9 +129,9 @@ async function validateAuthoritatively(shopId: string, input: ValidateConfigurat
       validateTemplateSelections(await resolveMeasurementMetadata(shopId, templateView(child).config), selected, summary, lineItemProperties, false, `${component.name} · `);
     }
   }
-  return { row, summary: summary.join(" / ") || `定制配置 v${row.version}`, lineItemProperties };
+  return { row, variant, summary: summary.join(" / ") || `定制配置 v${row.version}`, lineItemProperties };
 }
 export async function validateConfiguration(shopId: string, input: ValidateConfigurationInput) { const result = await validateAuthoritatively(shopId, input); return { valid: true, errors: [], configVersion: result.row.version, validatedAt: new Date().toISOString() }; }
 function instanceResponse(row: NonNullable<Awaited<ReturnType<typeof customizations.createCustomizationInstance>>>, visibleProperties: Record<string, string>) { const template = `${row.template_code}@${row.template_version}`; return { customizationId: row.id, status: row.status, configVersion: row.template_version, lineItemPropertiesVersion: 3, summary: row.summary, lineItemProperties: { "定制摘要": row.summary, ...visibleProperties, "定制编号": row.id, "定制模板": template, "_mtm_customization_id": row.id, "_mtm_template": template } }; }
 async function hashGuestId(guestId?: string | null) { if (!guestId) return null; const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(guestId))); return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join(""); }
-export async function createCustomization(identity: StorefrontIdentity, input: CreateCustomizationInput, guestId?: string | null) { const { row, summary, lineItemProperties } = await validateAuthoritatively(identity.shopId, input); const existing = await customizations.findByIdempotencyKey(identity.shopId, input.idempotencyKey); if (existing) return instanceResponse(existing, lineItemProperties); try { const created = await customizations.createCustomizationInstance({ shopId: identity.shopId, customerId: identity.customerId, guestIdHash: await hashGuestId(guestId), input, templateId: row.id, templateCode: row.code, templateVersion: row.version, schemaVersion: row.schema_version, summary }); if (!created) throw new AppError("定制实例创建失败", 500); return instanceResponse(created, lineItemProperties); } catch (error) { const concurrent = await customizations.findByIdempotencyKey(identity.shopId, input.idempotencyKey); if (concurrent) return instanceResponse(concurrent, lineItemProperties); throw error; } }
+export async function createCustomization(identity: StorefrontIdentity, input: CreateCustomizationInput, guestId?: string | null) { const { row, variant, summary, lineItemProperties } = await validateAuthoritatively(identity.shopId, input); const existing = await customizations.findByIdempotencyKey(identity.shopId, input.idempotencyKey); if (existing) return instanceResponse(existing, lineItemProperties); try { const created = await customizations.createCustomizationInstance({ shopId: identity.shopId, customerId: identity.customerId, guestIdHash: await hashGuestId(guestId), input: { ...input, sku: variant.sku }, templateId: row.id, templateCode: row.code, templateVersion: row.version, schemaVersion: row.schema_version, summary }); if (!created) throw new AppError("定制实例创建失败", 500); return instanceResponse(created, lineItemProperties); } catch (error) { const concurrent = await customizations.findByIdempotencyKey(identity.shopId, input.idempotencyKey); if (concurrent) return instanceResponse(concurrent, lineItemProperties); throw error; } }

@@ -13,11 +13,15 @@ export function ensureUnique(values: string[], label: string) {
 export function validateStepStructure(config: TemplateConfig, publishing = false) {
   ensureUnique(config.steps.map((step) => step.code), "步骤编码");
   ensureUnique(config.steps.map((step) => step.id), "步骤 ID");
+  const materialSteps = config.steps.filter((step) => step.enabled && step.type === "material");
+  if (materialSteps.length > 1) throw new AppError("每个模板只能配置一个启用的材质步骤");
+  if (materialSteps.length === 1 && config.steps.filter((step) => step.enabled).sort((left, right) => left.sortOrder - right.sortOrder)[0]?.id !== materialSteps[0].id) {
+    throw new AppError("材质步骤必须是消费者定制流程的第一步");
+  }
   const groups = config.steps.flatMap((step) => step.optionGroups);
   ensureUnique(groups.map((group) => group.code), "选项组编码");
   ensureUnique(groups.map((group) => group.id), "选项组 ID");
   ensureUnique(groups.filter((group) => group.previewEnabled).map((group) => String(group.previewLayerOrder)), "合图图层顺序");
-  if (publishing && config.previewMode === "layered" && !config.previewCanvas?.baseImage) throw new AppError("分层合图模板缺少单品底图，请选择图片后发布");
   const reserved = new Set(["measurements", "dimensions", "components", "embroidery_enabled", "embroidery_position", "embroidery_font", "embroidery_color", "embroidery_text", "__proto__", "constructor", "prototype"]);
   for (const group of groups) if (reserved.has(group.code)) throw new AppError(`选项组编码为系统保留字：${group.code}`);
   for (const step of config.steps) {

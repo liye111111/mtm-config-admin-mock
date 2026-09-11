@@ -1,4 +1,5 @@
-import type { GarmentCategory, MeasurementAttribute, MeasurementBlock, TemplateConfig, TemplateStatus } from "@/src/domain";
+import type { GarmentCategory, MeasurementAttribute, MeasurementBlock, TemplateConfig, TemplateStatus, VariantOptionMappings } from "@/src/domain";
+import type { ImageReference } from "@/src/domain";
 
 export type TemplateView = {
   id: string;
@@ -30,6 +31,8 @@ export type ProductBindingView = {
   onlineStoreUrl?: string;
   shopifyAdminUrl?: string;
   templateId: string;
+  variantOptionMappings: VariantOptionMappings;
+  visibleVariantMetafields: string[];
   publishedVersion: number | null;
   enabled: boolean;
   syncStatus: "synced" | "stale" | "error";
@@ -41,9 +44,18 @@ export type ProductBindingView = {
   updatedAt?: string;
 };
 
+export type MaterialPreviewImage = { url: string; alt?: string; width?: number; height?: number };
+export type MaterialPreviewVariant = { id: string; title: string; sku: string; material: string; available: boolean; jacketBase?: MaterialPreviewImage; trousersBase?: MaterialPreviewImage };
+export type MaterialPreviewProduct = { id: string; title: string; variants: MaterialPreviewVariant[] };
+export type VariantMetafieldDefinition = { id: string; namespace: string; key: string; name: string; description?: string; type: string; category?: string };
+export type VariantMetafieldValue = { namespace: string; key: string; type: string; value: string; image?: ImageReference };
+export type CustomizationVariant = { id: string; title: string; sku: string; material: string; available: boolean; metafields: VariantMetafieldValue[] };
+export type CustomizationVariantsProduct = { id: string; title: string; definitions: VariantMetafieldDefinition[]; variants: CustomizationVariant[] };
+
 export type ShopifyProductSelection = {
   gid: string; title: string; handle: string; imageUrl?: string; imageAlt?: string; status: "ACTIVE" | "DRAFT" | "ARCHIVED";
   variantCount: number; onlineStoreUrl?: string; updatedAt?: string;
+  options?: Array<{ shopifyOptionId: string; name: string; position: number }>;
 };
 
 export type TemplateVersionView = {

@@ -4,6 +4,14 @@ export type BoundProductKind = "single" | "suite";
 export type ShopifyProductStatus = "ACTIVE" | "DRAFT" | "ARCHIVED";
 export type ProductSyncStatus = "synced" | "stale" | "error";
 
+export type VariantOptionMapping = {
+  shopifyOptionId: string;
+  name: string;
+  position: number;
+};
+
+export type VariantOptionMappings = Record<string, VariantOptionMapping>;
+
 export type ProductTemplateBinding = {
   id: string;
   shopId: string;
@@ -19,6 +27,8 @@ export type ProductTemplateBinding = {
   onlineStoreUrl?: string;
   shopifyAdminUrl?: string;
   templateId: string;
+  variantOptionMappings: VariantOptionMappings;
+  visibleVariantMetafields: string[];
   publishedVersion: number | null;
   enabled: boolean;
   syncStatus: ProductSyncStatus;

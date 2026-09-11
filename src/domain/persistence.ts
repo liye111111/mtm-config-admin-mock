@@ -62,6 +62,8 @@ export type ProductBindingRow = {
   online_store_url: string | null;
   shopify_admin_url: string | null;
   template_id: string;
+  variant_option_mappings_json: string;
+  visible_variant_metafields_json: string;
   published_version: number | null;
   enabled: number;
   sync_status: string;

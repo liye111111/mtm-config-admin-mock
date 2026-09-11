@@ -4,7 +4,9 @@ import { createEmptyTemplateConfig, measurementFieldSchema, templateConfigSchema
 import { validateStepStructure, validateOptionSelections } from "../src/domain/template-rules.ts";
 import { createUniqueCode, regenerateTemplateIdentifiers } from "../src/domain/code.ts";
 import { parseValidateConfiguration } from "../src/schemas/storefront.ts";
+import { parseProductBinding } from "../src/schemas/product.ts";
 import { parseShopifyImages, canonicalizeTemplateImages } from "../src/services/template-media-service.ts";
+import { parseMaterialPreviewPage } from "../src/integrations/shopify-admin.ts";
 import { GET, POST } from "../app/api/templates/route.ts";
 import { PUT } from "../app/api/templates/[id]/route.ts";
 import { POST as publish } from "../app/api/templates/[id]/publish/route.ts";
@@ -23,6 +25,13 @@ function config() {
 const request = (path, method = "GET", body) => new Request(`http://localhost${path}`, { method, headers: { "X-MTM-Mock-Shopify": "1", "Content-Type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 const context = (id) => ({ params: Promise.resolve({ id }) });
 const responseFor = (ids, patch = {}) => ({ data: { nodes: ids.map((id) => ({ __typename: "MediaImage", id, fileStatus: "READY", alt: "领型", image: { url: image.url, altText: "", width: 400, height: 400 }, ...patch })) } });
+
+test("商品绑定前台 Variant 元字段白名单默认关闭、去重并校验身份", () => {
+  const base = { shopifyProductGid: "gid://shopify/Product/123", productKind: "single", templateId: "template-1", variantOptionMappings: {} };
+  assert.deepEqual(parseProductBinding(base).visibleVariantMetafields, []);
+  assert.deepEqual(parseProductBinding({ ...base, visibleVariantMetafields: ["custom.fabric_code", "custom.fabric_code"] }).visibleVariantMetafields, ["custom.fabric_code"]);
+  assert.throws(() => parseProductBinding({ ...base, visibleVariantMetafields: ["invalid"] }), /Variant 元字段标识无效/);
+});
 
 test("量体字段复选框只表示必填，旧未启用字段转为选填", () => {
   const base = { id: "hip", attributeId: "measurement:test:hip", inputUnit: "CM", required: true, enabled: false, sortOrder: 0 };
@@ -50,13 +59,12 @@ test("展示素材允许存草稿，但图文／图标组选项发布必填", ()
     validateStepStructure(data, true);
   }
 });
-test("分层合图发布要求底图，参与组的选项必须配置图片或明确无视觉变化", () => {
+test("分层合图底图由材质 SKU 提供，参与组的选项仍必须配置图片或明确无视觉变化", () => {
   const data = config();
   data.previewMode = "layered";
+  assert.doesNotThrow(() => validateStepStructure(data, true));
   data.steps[0].optionGroups[0].previewEnabled = true;
   assert.doesNotThrow(() => validateStepStructure(data));
-  assert.throws(() => validateStepStructure(data, true), /单品底图/);
-  data.previewCanvas = { baseImage: image };
   assert.throws(() => validateStepStructure(data, true), /缺少合图设置/);
   data.steps[0].optionGroups[0].options[0].previewLayer = { type: "image", image };
   data.steps[0].optionGroups[0].options[1].previewLayer = { type: "empty" };
@@ -71,6 +79,17 @@ test("组编码跨步骤唯一、默认选项互斥、特殊步骤不能混入�
   assert.throws(() => validateStepStructure(data), /不能包含选项组/);
   const reserved = config(); reserved.steps[0].optionGroups[0].code = "measurements";
   assert.throws(() => validateStepStructure(reserved), /保留字/);
+});
+test("材质 SKU 步骤最多一个且必须位于消费者流程第一步", () => {
+  const data = config();
+  const material = { id: "material", code: "material", title: "选择材质", type: "material", required: true, enabled: true, sortOrder: 0, optionGroups: [] };
+  data.steps[0].sortOrder = 1; data.steps.unshift(material);
+  assert.doesNotThrow(() => validateStepStructure(data));
+  material.sortOrder = 2;
+  assert.throws(() => validateStepStructure(data), /第一步/);
+  material.sortOrder = 0;
+  data.steps.push({ ...material, id: "material_2", code: "material_2", sortOrder: 3 });
+  assert.throws(() => validateStepStructure(data), /只能配置一个/);
 });
 test("刺绣位置、字体和颜色允许按模板选择性配置", () => {
   const data = config();
@@ -186,4 +205,14 @@ test("新增编码使用类型前缀和全局唯一值，复制模板重建内�
   assert.notEqual(copy.steps[0].embroidery.positions[0].code, source.steps[0].embroidery.positions[0].code);
   assert.notEqual(copy.measurementBlocks[0].code, source.measurementBlocks[0].code);
   assert.equal(source.steps[0].code, "detail");
+});
+
+test("材质预览按绑定映射解析任意名称的 Shopify Option", () => {
+  const page = parseMaterialPreviewPage({ data: { product: { id: "gid://shopify/Product/1", title: "西服", options: [{ id: "gid://shopify/ProductOption/1", name: "面料", position: 1 }], variants: { nodes: [{ id: "gid://shopify/ProductVariant/2", title: "羊毛", sku: "W-01", availableForSale: true, selectedOptions: [{ name: "面料", value: "羊毛" }], jacketBase: { reference: { image: { url: "https://cdn.shopify.com/jacket.png", width: 800, height: 1000 } } }, trousersBase: { reference: { image: { url: "https://cdn.shopify.com/trousers.png" } } } }], pageInfo: { hasNextPage: false, endCursor: null } } } } });
+  assert.equal(page.variants[0].material, "羊毛");
+  assert.equal(page.variants[0].jacketBase.url, "https://cdn.shopify.com/jacket.png");
+  assert.equal(page.variants[0].trousersBase.url, "https://cdn.shopify.com/trousers.png");
+  const multiple = { data: { product: { id: "1", title: "多规格商品", options: [{ id: "gid://shopify/ProductOption/1", name: "面料", position: 1 }, { id: "gid://shopify/ProductOption/2", name: "颜色", position: 2 }], variants: { nodes: [], pageInfo: { hasNextPage: false } } } } };
+  assert.throws(() => parseMaterialPreviewPage(multiple), /商品绑定/);
+  assert.doesNotThrow(() => parseMaterialPreviewPage(multiple, { shopifyOptionId: "gid://shopify/ProductOption/1", name: "旧名称", position: 1 }));
 });

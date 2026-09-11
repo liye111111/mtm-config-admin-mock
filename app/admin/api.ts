@@ -31,7 +31,7 @@ declare global {
       intents?: {
         invoke(intent: "pick:shopify/File", options: { data: { mediaTypes: ["MediaImage"]; multiSelect: false; selectedFiles: string[] } }): Promise<{ complete: Promise<{ code: string; data?: { ids?: string[] } }> }>;
       };
-      resourcePicker(options: { type: "product"; multiple: boolean; filter?: { variants?: boolean; status?: string } }): Promise<Array<{ id: string; title: string; handle?: string; status?: string; images?: Array<{ originalSrc?: string; altText?: string }>; variants?: Array<unknown> }> | undefined>;
+      resourcePicker(options: { type: "product"; multiple: boolean; filter?: { variants?: boolean; status?: string } }): Promise<Array<{ id: string; title: string; handle?: string; status?: string; images?: Array<{ originalSrc?: string; altText?: string }>; variants?: Array<unknown>; options?: Array<{ id: string; name: string; position: number }> }> | undefined>;
     };
   }
 }

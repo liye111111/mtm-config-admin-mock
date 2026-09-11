@@ -6,7 +6,7 @@
 
 统一层级为 `steps → optionGroups → options`。步骤代表消费者一页；每个组单选、独立必填，组在同一模板内使用唯一编码。后台支持步骤、组、选项增删与上下移动，以及组跨步骤移动；按稳定 ID 更新，移动不会改变组和选项编码。
 
-- 模板：`previewMode` 为 `none` 或 `layered`。固定展示模式使用可选的 `previewDisplayImage`，缺失时 Theme 回退 Shopify 商品图；分层模式使用 `previewCanvas.baseImage` 作为单品底图。
+- 模板：`previewMode` 为 `none` 或 `layered`。固定展示模式使用可选的 `previewDisplayImage`，缺失时 Theme 回退 Shopify 商品图；分层模式的底图由当前 Shopify 材质 Variant 的上衣／裤子底图元字段提供，模板只保存叠加图层。`previewCanvas.baseImage` 仅为历史数据兼容字段，不再要求配置。
 - 步骤：只组织消费者操作流程，不再持有预览图，也不影响合图层顺序。
 - 组：`displayStyle` 为 `image_text`、`text`、`icon_text`；`previewEnabled` 控制是否参与合图，`previewLayerOrder` 是跨步骤的全局图层顺序。
 - 选项：`displayImage` 为缩略图／图标；`previewLayer` 明确保存 `{ "type": "image", "image": ImageReference }` 或 `{ "type": "empty" }`。`badge` 仅展示，`affectsPrice` 固定为 `false`。

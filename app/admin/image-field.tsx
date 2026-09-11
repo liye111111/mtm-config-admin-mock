@@ -6,8 +6,8 @@ import { apiJson, jsonRequest } from "./api";
 
 export const ImagePickerPendingContext = createContext<(pending: boolean) => void>(() => undefined);
 
-export function ImageField({ label, image, required, onChange }: {
-  label: string; image?: ImageReference; required?: boolean; onChange: (image?: ImageReference) => void;
+export function ImageField({ label, image, required, allowRemove = true, onChange }: {
+  label: string; image?: ImageReference; required?: boolean; allowRemove?: boolean; onChange: (image?: ImageReference) => void;
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -38,7 +38,7 @@ export function ImageField({ label, image, required, onChange }: {
       {image ? <img src={image.url} alt={image.alt || label} onError={() => setError("图片暂不可用，请重新选择素材。")} /> : <span className="mtm-image-placeholder">未选择图片</span>}
       <div className="mtm-image-field__actions">
         <button type="button" className="secondary" disabled={pending} onClick={() => void choose()}>{pending ? "正在选择…" : image ? "替换图片" : "选择 Shopify 图片"}</button>
-        {image && <button type="button" className="link" disabled={pending} onClick={() => { setError(""); onChange(undefined); }}>解除关联</button>}
+        {image && allowRemove && <button type="button" className="link" disabled={pending} onClick={() => { setError(""); onChange(undefined); }}>解除关联</button>}
         {required && !image && <small className="danger-text">待补齐展示素材，可先保存草稿</small>}
       </div>
     </div>

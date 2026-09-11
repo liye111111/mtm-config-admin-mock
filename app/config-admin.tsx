@@ -10,8 +10,9 @@ import { SizeCharts } from "./admin/size-charts";
 import { ensureComponentsStep } from "@/src/domain/composite-flow";
 import { TemplateSteps } from "./admin/template-steps";
 import { storefrontTemplatePreview } from "./admin/template-json-preview";
-import type { CustomerMeasurementProfileDetail, MeasurementAttributeDraft, MeasurementAttributeView, MeasurementProfileAdminView, MeasurementProfileFilter, MeasurementProfilePage, ProductBindingView, ShopifyProductSelection, TemplateCategoryView, TemplateTab, TemplateVersionView, TemplateView } from "./admin/types";
+import type { CustomerMeasurementProfileDetail, CustomizationVariantsProduct, MeasurementAttributeDraft, MeasurementAttributeView, MeasurementProfileAdminView, MeasurementProfileFilter, MeasurementProfilePage, ProductBindingView, ShopifyProductSelection, TemplateCategoryView, TemplateTab, TemplateVersionView, TemplateView, VariantMetafieldDefinition } from "./admin/types";
 import { isShopifyEmbedded, selectShopifyProducts } from "./admin/shopify";
+import { ImageField } from "./admin/image-field";
 
 function clone<T>(value: T): T { return structuredClone(value); }
 function sortByOrder<T extends { sortOrder: number }>(items: T[]) { return items; }
@@ -151,9 +152,9 @@ export function ConfigAdmin() {
   function selectMeasurementAttribute(blockIndex: number, fieldIndex: number, attributeId: string) { const attribute = measurementAttributes.find((item) => item.id === attributeId); updateDraft((next) => { const field = next.config.measurementBlocks[blockIndex].fields[fieldIndex]; field.attributeId = attributeId; if (attribute) field.inputUnit = attribute.canonicalUnit; }); }
   function removeMeasurementField(blockIndex: number, fieldIndex: number) { updateDraft((next) => { const fields = next.config.measurementBlocks[blockIndex].fields; fields.splice(fieldIndex, 1); fields.forEach((item, order) => { item.sortOrder = order; }); }); }
 
-  function newBinding() { const templateId = items.find((item) => item.status === "published")?.id ?? ""; setBindingProducts([]); setEditingBinding({ id: "", shopId: "", shopifyProductGid: "", shopifyProductId: "", productTitle: "", productHandle: "", productStatus: "ACTIVE", productKind: "single", variantCount: 0, templateId, publishedVersion: null, enabled: true, syncStatus: "stale" }); void loadBindingVersions(templateId).catch(handleError); }
-  function editBinding(binding: ProductBindingView) { const product = { gid: binding.shopifyProductGid, title: binding.productTitle, handle: binding.productHandle, imageUrl: binding.productImageUrl, imageAlt: binding.productImageAlt, status: binding.productStatus, variantCount: binding.variantCount, onlineStoreUrl: binding.onlineStoreUrl, updatedAt: binding.shopifyUpdatedAt }; setBindingProducts([product]); setEditingBinding({ ...clone(binding), mockProduct: product }); void loadBindingVersions(binding.templateId).catch(handleError); }
-  async function pickProduct() { if (!editingBinding) return; const products = await selectShopifyProducts(!editingBinding.id); if (!products) return; setBindingProducts(products); }
+  function newBinding() { const templateId = items.find((item) => item.status === "published")?.id ?? ""; setBindingProducts([]); setEditingBinding({ id: "", shopId: "", shopifyProductGid: "", shopifyProductId: "", productTitle: "", productHandle: "", productStatus: "ACTIVE", productKind: "single", variantCount: 0, templateId, variantOptionMappings: {}, visibleVariantMetafields: [], publishedVersion: null, enabled: true, syncStatus: "stale" }); void loadBindingVersions(templateId).catch(handleError); }
+  function editBinding(binding: ProductBindingView) { const product = { gid: binding.shopifyProductGid, title: binding.productTitle, handle: binding.productHandle, imageUrl: binding.productImageUrl, imageAlt: binding.productImageAlt, status: binding.productStatus, variantCount: binding.variantCount, onlineStoreUrl: binding.onlineStoreUrl, updatedAt: binding.shopifyUpdatedAt, options: Object.values(binding.variantOptionMappings) }; setBindingProducts([product]); setEditingBinding({ ...clone(binding), mockProduct: product }); void loadBindingVersions(binding.templateId).catch(handleError); }
+  async function pickProduct() { if (!editingBinding) return; const products = await selectShopifyProducts(false); if (!products) return; setBindingProducts(products.slice(0, 1)); }
   async function saveBinding() {
     if (!editingBinding || !bindingProducts.length) return;
     const productsToSave = editingBinding.id ? bindingProducts.slice(0, 1) : bindingProducts;
@@ -245,7 +246,7 @@ export function ConfigAdmin() {
     {view === "categories" && <TemplateCategories categories={categories} draft={categoryDraft} onDraft={setCategoryDraft} onSave={()=>void saveCategory()} onDelete={(category)=>void removeCategory(category)}/>}
     {view === "measurement-attributes" && <MeasurementAttributes items={measurementAttributes} draft={measurementAttributeDraft} onDraft={setMeasurementAttributeDraft} onSave={() => void saveMeasurementAttribute()} onDelete={(attribute) => void removeMeasurementAttribute(attribute)} onToggle={(attribute) => void toggleMeasurementAttribute(attribute)} onRefresh={() => void loadMeasurementAttributes().catch(handleError)}/>}
     {view === "size-charts" && <SizeCharts measurementAttributes={measurementAttributes} />}
-    {view === "products" && <ProductBindingsNew items={items} bindings={bindings} editing={editingBinding} selectedProducts={bindingProducts} versions={bindingVersions} embedded={isShopifyEmbedded()} onPick={pickProduct} onRemoveSelected={(gid) => setBindingProducts((current) => current.filter((product) => product.gid !== gid))} onNew={newBinding} onEdit={editBinding} onRemove={removeBinding} onSync={syncBinding} onPreview={previewBinding} onChange={(binding) => setEditingBinding(binding)} onTemplateChange={(templateId) => { if (!editingBinding) return; setEditingBinding({ ...editingBinding, templateId, publishedVersion: null }); void loadBindingVersions(templateId).catch(handleError); }} onCancel={() => { setEditingBinding(null); setBindingProducts([]); }} onSave={saveBinding} />}
+    {view === "products" && <ProductBindingsNew items={items} bindings={bindings} editing={editingBinding} selectedProducts={bindingProducts} versions={bindingVersions} embedded={isShopifyEmbedded()} onPick={pickProduct} onRemoveSelected={(gid) => setBindingProducts((current) => current.filter((product) => product.gid !== gid))} onNew={newBinding} onEdit={editBinding} onRemove={removeBinding} onSync={syncBinding} onPreview={previewBinding} onChange={(binding) => setEditingBinding(binding)} onTemplateChange={(templateId) => { if (!editingBinding) return; setEditingBinding({ ...editingBinding, templateId, variantOptionMappings: {}, publishedVersion: null }); void loadBindingVersions(templateId).catch(handleError); }} onCancel={() => { setEditingBinding(null); setBindingProducts([]); }} onSave={saveBinding} />}
     {bindingPreview && <JsonPreviewModal preview={bindingPreview} onClose={() => setBindingPreview(null)}/>}
     {view === "customers" && <CustomerProfiles result={measurementProfileResult} filter={measurementProfileFilter} bindings={bindings} templates={items} draft={customerProfileDraft} onDraft={setCustomerProfileDraft} onFilter={filterMeasurementProfiles} onPage={pageMeasurementProfiles} onNew={newCustomerProfile} onEdit={(profile) => void editCustomerProfile(profile)} onDelete={(profile) => void removeCustomerProfile(profile)} onSave={() => void saveCustomerProfile()} onCancel={() => setCustomerProfileDraft(null)} onRefresh={() => void loadMeasurementProfiles().catch(handleError)} />}
   </AdminShell>;
@@ -343,7 +344,7 @@ function TemplateWorkspace(props: TemplateWorkspaceProps) {
         <div className="tabs">{([['base','基础信息'],['components','组合/套装'],['steps','定制步骤'],['measurements','量体定义'],['versions','发布记录'],['json','JSON 预览']] as Array<[TemplateTab,string]>).filter(([key]) => key !== "components" || draft.config.templateType === "composite").map(([key,label]) => <button key={key} disabled={props.busy} className={props.tab === key ? "active" : ""} onClick={() => props.onTab(key)}>{label}</button>)}</div>
         {props.tab === "base" && <BaseTab draft={draft} categories={props.categories} onDraft={props.onDraft} onTemplateType={props.onTemplateType}/>}
         {props.tab === "components" && <ComponentsTab draft={draft} items={props.items} categories={props.categories} onAdd={props.onAddComponent} onUpdate={props.onUpdateComponent} onRemove={props.onRemoveComponent}/>}
-        {props.tab === "steps" && <TemplateSteps key={draft.id} draft={draft} disabled={props.busy} onDraft={props.onDraft} onImagePending={props.onImagePending}/>}
+        {props.tab === "steps" && <TemplateSteps key={draft.id} draft={draft} bindings={props.bindings.filter((binding) => binding.templateId === draft.id)} disabled={props.busy} onDraft={props.onDraft} onImagePending={props.onImagePending}/>}
         {props.tab === "measurements" && <MeasurementsTab draft={draft} attributes={props.measurementAttributes} onAddBlock={props.onAddBlock} onUpdateBlock={props.onUpdateBlock} onRemoveBlock={props.onRemoveBlock} onAddField={props.onAddField} onUpdateField={props.onUpdateField} onSelectAttribute={props.onSelectAttribute} onRemoveField={props.onRemoveField}/>}
         {props.tab === "versions" && <VersionsTab versions={props.versions}/>}
         {props.tab === "json" && <>
@@ -384,23 +385,87 @@ function VersionsTab({ versions }: { versions: TemplateVersionView[] }) { return
 type ProductBindingsProps = { items: TemplateView[]; bindings: ProductBindingView[]; editing: ProductBindingView | null; selectedProducts: ShopifyProductSelection[]; versions: TemplateVersionView[]; embedded: boolean; onPick: () => void; onRemoveSelected: (gid: string) => void; onNew: () => void; onEdit: (binding: ProductBindingView) => void; onRemove: (binding: ProductBindingView) => void; onSync: (binding: ProductBindingView) => void; onPreview: (binding: ProductBindingView) => void; onChange: (binding: ProductBindingView) => void; onTemplateChange: (templateId: string) => void; onCancel: () => void; onSave: () => void };
 
 function ProductBindingsNew({ items, bindings, editing, selectedProducts, versions, embedded, onPick, onRemoveSelected, onNew, onEdit, onRemove, onSync, onPreview, onChange, onTemplateChange, onCancel, onSave }: ProductBindingsProps) {
+  const [customizationVariants, setCustomizationVariants] = useState<CustomizationVariantsProduct | null>(null);
+  const [variantFieldsBusy, setVariantFieldsBusy] = useState(false);
+  const [variantFieldsError, setVariantFieldsError] = useState("");
+  const [dirtyMetafields, setDirtyMetafields] = useState<Set<string>>(new Set());
   const publishedTemplates = items.filter((item) => item.status === "published" && (editing?.productKind === "suite" ? item.config.templateType === "composite" : item.config.templateType === "single"));
+  const selectedTemplate = items.find((item) => item.id === editing?.templateId);
+  const requiresMaterialMapping = Boolean(selectedTemplate?.config.steps.some((step) => step.enabled && step.type === "material"));
+  const productOptions = selectedProducts.length === 1 ? selectedProducts[0].options ?? [] : [];
+  const materialMapping = editing?.variantOptionMappings.material;
+  const mappingReady = !requiresMaterialMapping || Boolean(materialMapping) || productOptions.length <= 1;
+  const productGid = selectedProducts.length === 1 ? selectedProducts[0].gid : "";
+  const materialOptionId = materialMapping?.shopifyOptionId || (productOptions.length === 1 ? productOptions[0].shopifyOptionId : "");
+  async function loadVariantFields() {
+    if (!productGid) return;
+    setVariantFieldsBusy(true); setVariantFieldsError("");
+    try { const payload = await apiJson<CustomizationVariantsProduct>(`/api/shopify/customization-variants?${new URLSearchParams({ productGid, optionId: materialOptionId })}`); setCustomizationVariants(payload.data ?? null); setDirtyMetafields(new Set()); }
+    catch (error) { setVariantFieldsError(error instanceof Error ? error.message : "Variant 元字段读取失败"); }
+    finally { setVariantFieldsBusy(false); }
+  }
+  async function saveVariantFields() {
+    if (!customizationVariants) return;
+    setVariantFieldsBusy(true); setVariantFieldsError("");
+    try {
+      for (const variant of customizationVariants.variants) for (const field of variant.metafields) if ((field.type === "json" || field.type.startsWith("list.")) && field.value) try { JSON.parse(field.value); } catch { throw new Error(`${variant.title} 的 ${field.namespace}.${field.key} 必须是有效 JSON`); }
+      const variants = customizationVariants.variants.map((variant) => ({ id: variant.id, metafields: variant.metafields.filter((field) => dirtyMetafields.has(`${variant.id}:${field.namespace}.${field.key}`)).map((field) => ({ namespace: field.namespace, key: field.key, type: field.type, value: field.value })) })).filter((variant) => variant.metafields.length);
+      if (!variants.length) throw new Error("没有需要保存的 Variant 字段变更");
+      const payload = await apiJson<CustomizationVariantsProduct>("/api/shopify/customization-variants", jsonRequest("PUT", { productGid, optionId: materialOptionId, variants }));
+      setCustomizationVariants(payload.data ?? customizationVariants);
+      setDirtyMetafields(new Set());
+    } catch (error) { setVariantFieldsError(error instanceof Error ? error.message : "Variant 元字段保存失败"); }
+    finally { setVariantFieldsBusy(false); }
+  }
+  function updateMetafield(variantIndex: number, definition: VariantMetafieldDefinition, value: string, image?: CustomizationVariantsProduct["variants"][number]["metafields"][number]["image"]) {
+    const variantId = customizationVariants?.variants[variantIndex].id;
+    if (variantId) setDirtyMetafields((current) => new Set(current).add(`${variantId}:${definition.namespace}.${definition.key}`));
+    setCustomizationVariants((current) => current ? { ...current, variants: current.variants.map((variant, index) => {
+      if (index !== variantIndex) return variant;
+      const identity = (field: { namespace: string; key: string }) => field.namespace === definition.namespace && field.key === definition.key;
+      const existing = variant.metafields.find(identity);
+      const next = { namespace: definition.namespace, key: definition.key, type: definition.type, value, image };
+      return { ...variant, metafields: existing ? variant.metafields.map((field) => identity(field) ? next : field) : [...variant.metafields, next] };
+    }) } : current);
+  }
+  function metafieldEditor(variantIndex: number, definition: VariantMetafieldDefinition) {
+    const field = customizationVariants?.variants[variantIndex].metafields.find((item) => item.namespace === definition.namespace && item.key === definition.key);
+    const value = field?.value ?? "";
+    if (definition.type === "file_reference") return <ImageField label={definition.name} image={field?.image} allowRemove={false} onChange={(image) => image && updateMetafield(variantIndex, definition, image.fileId, image)}/>;
+    if (definition.type === "boolean") return <label className="switch-label"><input type="checkbox" checked={value === "true"} onChange={(event) => updateMetafield(variantIndex, definition, String(event.target.checked))}/> {value === "true" ? "是" : "否"}</label>;
+    const shared = { value, onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => updateMetafield(variantIndex, definition, event.target.value) };
+    if (definition.type === "multi_line_text_field" || definition.type === "json" || definition.type.startsWith("list.")) return <textarea {...shared} rows={definition.type === "multi_line_text_field" ? 3 : 4} placeholder={definition.type === "json" || definition.type.startsWith("list.") ? "请输入有效 JSON" : ""}/>;
+    const inputType = definition.type.startsWith("number_") ? "number" : definition.type === "date" ? "date" : definition.type === "url" ? "url" : "text";
+    return <input {...shared} type={inputType}/>;
+  }
   return <>
     <div className="head"><div><h2>商品绑定</h2><p>通过 Shopify 官方商品选择器绑定已发布定制模板。</p></div><button className="primary" onClick={onNew}>＋ 新建绑定</button></div>
-    {editing && <div className="panel binding-form">
+    {editing && <>
+    <div className="panel binding-form">
+      <div className="section-title"><div><h4>商品绑定配置</h4><p className="section-help">维护商品、模板、SKU 规格映射和前台可见字段；保存绑定不会修改 Variant Metafields 的值。</p></div></div>
       {!embedded && <div className="notice warning">本地开发模式：当前使用 Mock 商品选择器，正式环境必须从 Shopify Admin 打开。</div>}
       <div className="product-picker-selection">
-        <div className="product-picker-heading"><div><strong>{selectedProducts.length ? `已选择 ${selectedProducts.length} 个 Shopify 商品` : "尚未选择 Shopify 商品"}</strong><small>{editing.id ? "编辑绑定时仅可替换一个商品" : "可一次选择多个商品，并共用下方的绑定配置"}</small></div><button className="secondary" onClick={onPick}>{selectedProducts.length ? "重新选择" : "选择 Shopify 商品"}</button></div>
+        <div className="product-picker-heading"><div><strong>{selectedProducts.length ? `已选择 ${selectedProducts.length} 个 Shopify 商品` : "尚未选择 Shopify 商品"}</strong><small>每次绑定一个商品，以便逐个维护该商品的 Variant 元字段</small></div><button className="secondary" onClick={onPick}>{selectedProducts.length ? "重新选择" : "选择 Shopify 商品"}</button></div>
         {selectedProducts.map((product) => <div className="product-picker-card" key={product.gid}>{product.imageUrl ? <img src={product.imageUrl} alt={product.imageAlt || ""}/> : <div className="product-placeholder">商品</div>}<div><strong>{product.title}</strong><small>{product.gid.split("/").at(-1)} · {product.handle || "无 Handle"}</small><small>{product.status} · {product.variantCount} 个 Variants</small></div>{!editing.id && <button className="link danger-text" onClick={() => onRemoveSelected(product.gid)}>移除</button>}</div>)}
       </div>
       <div className="form">
         <Field label="商品类型"><select value={editing.productKind} onChange={(event) => onChange({ ...editing, productKind: event.target.value as ProductBindingView["productKind"], templateId: "", publishedVersion: null })}><option value="single">普通单品</option><option value="suite">普通套装</option></select></Field>
         <Field label="配置模板"><select value={editing.templateId} onChange={(event) => onTemplateChange(event.target.value)}><option value="">请选择兼容的已发布模板</option>{publishedTemplates.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.categoryLabel}</option>)}</select></Field>
         <Field label="发布版本"><select value={editing.publishedVersion ?? ""} onChange={(event) => onChange({ ...editing, publishedVersion: event.target.value ? Number(event.target.value) : null })}><option value="">跟随最新发布版本</option>{versions.map((version) => <option key={version.id} value={version.version}>v{version.version}</option>)}</select></Field>
+        {requiresMaterialMapping && <Field label="材质步骤对应的 Shopify 规格"><select value={materialMapping?.shopifyOptionId ?? ""} onChange={(event) => { const option = productOptions.find((item) => item.shopifyOptionId === event.target.value); const mappings = { ...editing.variantOptionMappings }; if (option) mappings.material = option; else delete mappings.material; onChange({ ...editing, variantOptionMappings: mappings }); }}><option value="">{productOptions.length <= 1 ? "自动使用唯一规格" : "请选择 Shopify 规格"}</option>{productOptions.map((option) => <option key={option.shopifyOptionId} value={option.shopifyOptionId}>{option.name}（第 {option.position} 项）</option>)}</select>{selectedProducts.length > 1 && <small>包含材质步骤的模板请一次绑定一个商品，以便分别配置规格映射。</small>}</Field>}
         <Field label="定制能力"><label className="switch-label"><input type="checkbox" checked={editing.enabled} onChange={(event) => onChange({ ...editing, enabled: event.target.checked })}/> 启用商品定制</label></Field>
       </div>
-      <div className="actions"><button className="secondary" onClick={onCancel}>取消</button><button className="primary" disabled={!selectedProducts.length || !editing.templateId} onClick={onSave}>{editing.id ? "保存绑定" : selectedProducts.length ? `绑定 ${selectedProducts.length} 个商品` : "请选择商品"}</button></div>
-    </div>}
+      {customizationVariants && customizationVariants.definitions.length > 0 && <div className="binding-metafield-visibility"><strong>SKU 步骤前台可见字段</strong><small>该设置属于商品绑定。未勾选字段不会进入公开 Storefront 响应。</small><div>{customizationVariants.definitions.map((definition) => { const identity = `${definition.namespace}.${definition.key}`; return <label key={definition.id}><input type="checkbox" checked={editing.visibleVariantMetafields.includes(identity)} onChange={(event) => onChange({ ...editing, visibleVariantMetafields: event.target.checked ? [...new Set([...editing.visibleVariantMetafields, identity])] : editing.visibleVariantMetafields.filter((item) => item !== identity) })}/> {definition.name} <code>{identity}</code></label>; })}</div></div>}
+      <div className="actions"><button className="secondary" onClick={onCancel}>取消</button><button className="primary" disabled={!selectedProducts.length || !editing.templateId || !mappingReady || (requiresMaterialMapping && selectedProducts.length !== 1)} onClick={onSave}>{editing.id ? "保存绑定" : selectedProducts.length ? `绑定 ${selectedProducts.length} 个商品` : "请选择商品"}</button></div>
+    </div>
+      {productGid && <div className="panel binding-variant-fields">
+        <div className="section-title"><div><h4>Variant Metafields</h4><p className="section-help">独立维护 Shopify Variant 字段值；“保存 Variant 字段”不会修改上方的商品绑定配置。</p></div><div><button className="secondary" disabled={variantFieldsBusy} onClick={() => void loadVariantFields()}>{customizationVariants ? "重新读取" : "读取 Variant 字段"}</button>{customizationVariants && <button className="primary" disabled={variantFieldsBusy} onClick={() => void saveVariantFields()}>保存 Variant 字段</button>}</div></div>
+        {variantFieldsError && <div className="notice error">{variantFieldsError}</div>}
+        {variantFieldsBusy && !customizationVariants && <div className="empty">正在读取 Shopify Variants…</div>}
+        {customizationVariants && !customizationVariants.definitions.length && <div className="empty">店铺尚未配置 ProductVariant 元字段定义。</div>}
+        {customizationVariants?.variants.map((variant, index) => <div className="binding-variant-card" key={variant.id}><div className="binding-variant-heading"><strong>{variant.material}</strong><small>{variant.sku || "未填写 SKU"} · {variant.available ? "可售" : "不可售"}</small></div><div className="binding-metafield-grid">{customizationVariants.definitions.map((definition) => <div className="binding-metafield-field" key={definition.id}><div className="binding-metafield-label"><strong>{definition.name}</strong><code>{definition.namespace}.{definition.key}</code><small>{definition.type}{definition.description ? ` · ${definition.description}` : ""}</small></div>{metafieldEditor(index, definition)}</div>)}</div></div>)}
+      </div>}
+    </>}
     <div className="panel table-wrap"><table><thead><tr><th>商品</th><th>类型</th><th>模板</th><th>版本</th><th>同步</th><th>状态</th><th>操作</th></tr></thead><tbody>{bindings.map((binding) => <tr key={binding.id}><td><div className="product-table-cell">{binding.productImageUrl ? <img src={binding.productImageUrl} alt=""/> : <span/>}<div><strong>{binding.productTitle}</strong><small>{binding.shopifyProductId} · {binding.productHandle}</small></div></div></td><td>{binding.productKind === "suite" ? "普通套装" : "普通单品"}</td><td>{items.find((item) => item.id === binding.templateId)?.name ?? binding.templateId}</td><td>{binding.publishedVersion ? `v${binding.publishedVersion}` : "最新"}</td><td><span className={`badge ${binding.syncStatus === "synced" ? "published" : "draft"}`}>{binding.syncStatus === "synced" ? "已同步" : "待同步"}</span></td><td><span className={`badge ${binding.enabled ? "published" : "draft"}`}>{binding.enabled ? "已启用" : "已停用"}</span></td><td>{binding.shopifyAdminUrl && <a className="link" href={binding.shopifyAdminUrl} target="_top">Shopify</a>}<button className="link" onClick={() => onPreview(binding)}>预览</button><button className="link" onClick={() => onSync(binding)}>同步</button><button className="link" onClick={() => onEdit(binding)}>编辑</button><button className="link danger-text" onClick={() => onRemove(binding)}>删除</button></td></tr>)}</tbody></table>{!bindings.length && <div className="empty">暂无商品绑定</div>}</div>
   </>;
 }

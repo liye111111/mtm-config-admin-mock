@@ -70,7 +70,7 @@ export const customizationStepSchema = z.preprocess((value) => withoutLegacyFiel
   code: codeSchema,
   title: z.string().trim().min(1, "步骤名称不能为空"),
   description: z.string().trim().optional(),
-  type: z.enum(["options", "embroidery", "components", "measurements", "review"]),
+  type: z.enum(["material", "options", "embroidery", "components", "measurements", "review"]),
   required: z.boolean(),
   enabled: z.boolean(),
   sortOrder: z.number().int().nonnegative(),
